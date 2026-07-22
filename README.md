@@ -7,6 +7,7 @@ Production-ready MVP Telegram bot for analyzing Zoom English lessons.
 This repository is being built as a simple monolith:
 
 - FastAPI backend
+- Telegram command layer for MVP teacher/admin commands
 - PostgreSQL database
 - SQLAlchemy 2.x models
 - Alembic migrations
@@ -51,6 +52,25 @@ curl http://localhost:8080/ready
 ```bash
 python -m pytest tests -q
 ```
+
+## Telegram commands
+
+Teacher commands:
+
+- `/start`
+- `/connect_zoom`
+- `/disconnect_zoom`
+- `/status`
+- `/last_report`
+
+Admin commands:
+
+- `/status`
+- `/last_report`
+- `/last_error`
+
+The bot only creates teacher users for Telegram IDs listed in `ALLOWED_TELEGRAM_TEACHER_IDS`.
+`TELEGRAM_ADMIN_ID` can access admin status/error commands.
 
 ## Database schema
 
