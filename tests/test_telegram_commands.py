@@ -269,8 +269,15 @@ async def test_add_zoom_meeting_subscribes_teacher_to_meeting_link():
     assert subscription.meeting_url == "https://us06web.zoom.us/j/987654321?pwd=secret"
     assert subscription.is_active is True
     assert gateway.sent_messages == [
-        (555, "Готово ✅\nЯ буду анализировать данные только по Zoom-конференции 987654321.")
+        (
+            555,
+            "Готово ✅\n"
+            "Я буду анализировать данные только по Zoom-конференции 987654321.\n\n"
+            "Важно: данные появятся только если подключённый Zoom-аккаунт имеет доступ "
+            "к данным этой конференции.",
+        )
     ]
+    assert "хост" not in gateway.sent_messages[0][1].lower()
 
 
 async def test_add_zoom_meeting_rejects_invalid_link():

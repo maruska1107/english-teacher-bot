@@ -18,6 +18,7 @@ from app.telegram.messages import (
     ZOOM_CONNECT_NOT_READY_TEXT,
     ZOOM_DISCONNECTED_TEXT,
     ZOOM_MEETING_LINK_HELP_TEXT,
+    ZOOM_MEETING_SUBSCRIBED_TEMPLATE,
 )
 from app.zoom.oauth import ZoomOAuthService
 
@@ -108,7 +109,7 @@ class TelegramCommandService:
         self.session.commit()
         await self.gateway.send_message(
             chat_id,
-            f"Готово ✅\nЯ буду анализировать данные только по Zoom-конференции {meeting_id}.",
+            ZOOM_MEETING_SUBSCRIBED_TEMPLATE.format(meeting_id=meeting_id),
         )
 
     async def handle_disconnect_zoom(self, telegram_user_id: int, chat_id: int) -> None:
