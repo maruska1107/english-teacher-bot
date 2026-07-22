@@ -124,6 +124,6 @@ docker compose up --build
 12. The bot downloads the transcript, analyzes it, sends the teacher report to the teacher, and sends an admin copy/error notification to the admin.
 13. Use `/last_report`, `/last_error`, and `/status` to inspect the latest state.
 
-For local testing, expose nginx port `8080` with a temporary HTTPS tunnel and use that HTTPS base URL in Zoom redirect/webhook settings.
+For VPS deployment with a real HTTPS domain, see [`docs/deployment-vps.md`](docs/deployment-vps.md).
 
 Application secrets such as Zoom Client Secret, Telegram Bot Token, and OpenAI API key are loaded from environment variables and must not be stored in the database.
