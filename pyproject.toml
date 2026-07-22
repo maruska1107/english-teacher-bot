@@ -1,0 +1,36 @@
+[project]
+name = "english-teacher-bot"
+version = "0.1.0"
+description = "Telegram bot for analyzing Zoom English lessons"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic==1.14.0",
+    "fastapi==0.115.6",
+    "openai==1.59.7",
+    "psycopg[binary]==3.2.3",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.1",
+    "python-dotenv==1.0.1",
+    "python-telegram-bot==21.10",
+    "sqlalchemy==2.0.36",
+    "uvicorn[standard]==0.34.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx==0.28.1",
+    "pytest==8.3.4",
+    "pytest-cov==6.0.0",
+    "ruff==0.8.4",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
