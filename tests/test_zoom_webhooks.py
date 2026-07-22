@@ -14,7 +14,7 @@ from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
-from app.models import Lesson, ProcessedWebhookEvent, User, ZoomToken
+from app.models import Lesson, ProcessedWebhookEvent, User, ZoomMeetingSubscription, ZoomToken
 
 
 def make_session() -> Session:
@@ -107,6 +107,14 @@ def test_recording_completed_is_idempotent_and_creates_lesson_for_zoom_user():
             expires_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
     )
+    session.add(
+        ZoomMeetingSubscription(
+            user_id=teacher.id,
+            meeting_id="987654321",
+            meeting_url="https://us06web.zoom.us/j/987654321",
+            is_active=True,
+        )
+    )
     session.commit()
     client = make_client(session)
     payload = {
@@ -173,6 +181,14 @@ def test_recording_completed_can_trigger_lesson_processing_pipeline():
             expires_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
     )
+    session.add(
+        ZoomMeetingSubscription(
+            user_id=teacher.id,
+            meeting_id="987654322",
+            meeting_url="https://us06web.zoom.us/j/987654322",
+            is_active=True,
+        )
+    )
     session.commit()
     client = make_client(session)
     app = client.app
@@ -212,3 +228,59 @@ def test_recording_completed_can_trigger_lesson_processing_pipeline():
 
     assert response.status_code == 200
     assert fake_processor.lesson_ids == [session.query(Lesson).one().id]
+
+
+def test_recording_completed_ignores_unsubscribed_meeting():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    session.add(
+        ZoomToken(
+            user_id=teacher.id,
+            zoom_account_id="account-1",
+            zoom_user_id="zoom-user-1",
+            access_token="access",
+            refresh_token="refresh",
+            expires_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+    )
+    session.add(
+        ZoomMeetingSubscription(
+            user_id=teacher.id,
+            meeting_id="111222333",
+            meeting_url="https://us06web.zoom.us/j/111222333",
+            is_active=True,
+        )
+    )
+    session.commit()
+    client = make_client(session)
+    payload = {
+        "event": "recording.completed",
+        "event_ts": 125,
+        "payload": {
+            "account_id": "account-1",
+            "object": {
+                "id": "987654323",
+                "uuid": "meeting-uuid-3",
+                "host_id": "zoom-user-1",
+                "recording_files": [
+                    {
+                        "id": "file-3",
+                        "file_type": "TRANSCRIPT",
+                        "download_url": "https://zoom.example/transcript.vtt",
+                    }
+                ],
+            },
+        },
+    }
+
+    response = client.post(
+        "/api/zoom/webhook",
+        content=json.dumps(payload, separators=(",", ":")),
+        headers=signed_headers(payload),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ignored_unsubscribed_meeting"}
+    assert session.query(Lesson).count() == 0

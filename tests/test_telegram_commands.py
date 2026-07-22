@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.db.base import Base
-from app.models import Lesson, LessonAnalysis, User, ZoomToken
+from app.models import Lesson, LessonAnalysis, User, ZoomMeetingSubscription, ZoomToken
 from app.telegram.commands import TelegramCommandService
 from app.telegram.messages import START_NOTICE_TEXT
 
@@ -250,3 +250,35 @@ async def test_disconnect_zoom_removes_teacher_zoom_tokens():
 
     assert session.query(ZoomToken).filter_by(user_id=teacher.id).count() == 0
     assert gateway.sent_messages == [(555, "Zoom отключён.")]
+
+
+async def test_add_zoom_meeting_subscribes_teacher_to_meeting_link():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.handle_add_zoom_meeting(
+        telegram_user_id=1001,
+        chat_id=555,
+        meeting_link="https://us06web.zoom.us/j/987654321?pwd=secret",
+    )
+
+    user = session.query(User).filter_by(telegram_user_id=1001).one()
+    subscription = session.query(ZoomMeetingSubscription).filter_by(user_id=user.id).one()
+    assert subscription.meeting_id == "987654321"
+    assert subscription.meeting_url == "https://us06web.zoom.us/j/987654321?pwd=secret"
+    assert subscription.is_active is True
+    assert gateway.sent_messages == [
+        (555, "Готово ✅\nЯ буду анализировать данные только по Zoom-конференции 987654321.")
+    ]
+
+
+async def test_add_zoom_meeting_rejects_invalid_link():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.handle_add_zoom_meeting(telegram_user_id=1001, chat_id=555, meeting_link="not-a-zoom-link")
+
+    assert session.query(ZoomMeetingSubscription).count() == 0
+    assert "Пришлите ссылку Zoom" in gateway.sent_messages[0][1]

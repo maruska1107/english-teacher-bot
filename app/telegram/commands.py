@@ -1,10 +1,13 @@
+import re
 from typing import Protocol
+from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.repositories.lessons import LessonRepository
 from app.repositories.users import UserRepository
+from app.repositories.zoom_meeting_subscriptions import ZoomMeetingSubscriptionRepository
 from app.repositories.zoom_tokens import ZoomTokenRepository
 from app.telegram.messages import (
     ACCESS_DENIED_TEXT,
@@ -14,12 +17,38 @@ from app.telegram.messages import (
     START_NOTICE_TEXT,
     ZOOM_CONNECT_NOT_READY_TEXT,
     ZOOM_DISCONNECTED_TEXT,
+    ZOOM_MEETING_LINK_HELP_TEXT,
 )
 from app.zoom.oauth import ZoomOAuthService
 
 
 class TelegramGateway(Protocol):
     async def send_message(self, chat_id: int, text: str) -> None: ...
+
+
+def extract_zoom_meeting_id(meeting_link: str) -> str | None:
+    value = meeting_link.strip()
+    if not value:
+        return None
+
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https", "zoommtg"}:
+        return None
+    host = parsed.netloc.lower()
+    if "zoom.us" not in host:
+        return None
+
+    query = parse_qs(parsed.query)
+    for key in ("confno", "meeting_id"):
+        if key in query:
+            digits = re.sub(r"\D", "", query[key][0])
+            return digits if len(digits) >= 6 else None
+
+    match = re.search(r"/(?:j|s|wc/join)/(\d{6,})", parsed.path)
+    if match:
+        return match.group(1)
+
+    return None
 
 
 class TelegramCommandService:
@@ -35,6 +64,7 @@ class TelegramCommandService:
         self.settings = settings
         self.users = UserRepository(session)
         self.lessons = LessonRepository(session)
+        self.zoom_meeting_subscriptions = ZoomMeetingSubscriptionRepository(session)
         self.zoom_tokens = ZoomTokenRepository(session)
 
     async def handle_start(self, telegram_user_id: int, chat_id: int) -> None:
@@ -60,6 +90,26 @@ class TelegramCommandService:
             await self.gateway.send_message(chat_id, ZOOM_CONNECT_NOT_READY_TEXT)
             return
         await self.gateway.send_message(chat_id, f"Подключите Zoom по ссылке:\n{authorization_url}")
+
+    async def handle_add_zoom_meeting(self, telegram_user_id: int, chat_id: int, meeting_link: str = "") -> None:
+        if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
+            return
+        meeting_id = extract_zoom_meeting_id(meeting_link)
+        if meeting_id is None:
+            await self.gateway.send_message(chat_id, ZOOM_MEETING_LINK_HELP_TEXT)
+            return
+        user = self.users.get_by_telegram_id(telegram_user_id)
+        assert user is not None
+        self.zoom_meeting_subscriptions.upsert_for_user(
+            user_id=user.id,
+            meeting_id=meeting_id,
+            meeting_url=meeting_link.strip(),
+        )
+        self.session.commit()
+        await self.gateway.send_message(
+            chat_id,
+            f"Готово ✅\nЯ буду анализировать данные только по Zoom-конференции {meeting_id}.",
+        )
 
     async def handle_disconnect_zoom(self, telegram_user_id: int, chat_id: int) -> None:
         if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):

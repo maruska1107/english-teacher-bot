@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Lesson
 from app.repositories.webhook_events import ProcessedWebhookEventRepository
+from app.repositories.zoom_meeting_subscriptions import ZoomMeetingSubscriptionRepository
 from app.repositories.zoom_tokens import ZoomTokenRepository
 
 
@@ -18,6 +19,7 @@ class ZoomWebhookService:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.events = ProcessedWebhookEventRepository(session)
+        self.zoom_meeting_subscriptions = ZoomMeetingSubscriptionRepository(session)
         self.zoom_tokens = ZoomTokenRepository(session)
 
     def handle_recording_completed(self, payload: dict[str, Any]) -> RecordingCompletedResult:
@@ -42,9 +44,19 @@ class ZoomWebhookService:
             self.session.commit()
             return RecordingCompletedResult(status="ignored_no_teacher")
 
+        meeting_id = str(meeting.get("id") or "")
+        if not self.zoom_meeting_subscriptions.active_exists(user_id=teacher_user_id, meeting_id=meeting_id):
+            self.events.create(
+                event_id=event_id,
+                event_type="recording.completed",
+                status="ignored_unsubscribed_meeting",
+            )
+            self.session.commit()
+            return RecordingCompletedResult(status="ignored_unsubscribed_meeting")
+
         lesson = Lesson(
             teacher_user_id=teacher_user_id,
-            meeting_id=str(meeting.get("id") or ""),
+            meeting_id=meeting_id,
             meeting_uuid=str(meeting.get("uuid") or ""),
             transcript_download_url=self._transcript_download_url(meeting),
             processing_status="pending",

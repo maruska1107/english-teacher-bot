@@ -19,4 +19,7 @@ class User(Base):
     )
 
     zoom_tokens = relationship("ZoomToken", back_populates="user", cascade="all, delete-orphan")
+    zoom_meeting_subscriptions = relationship(
+        "ZoomMeetingSubscription", back_populates="user", cascade="all, delete-orphan"
+    )
     lessons = relationship("Lesson", back_populates="teacher", cascade="all, delete-orphan")

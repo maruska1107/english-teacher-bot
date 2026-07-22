@@ -36,6 +36,9 @@ def build_telegram_application(settings: Settings | None = None) -> Application 
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", _command_handler("handle_start", settings)))
     application.add_handler(CommandHandler("connect_zoom", _command_handler("handle_connect_zoom", settings)))
+    application.add_handler(
+        CommandHandler("add_zoom_meeting", _text_command_handler("handle_add_zoom_meeting", settings))
+    )
     application.add_handler(CommandHandler("disconnect_zoom", _command_handler("handle_disconnect_zoom", settings)))
     application.add_handler(CommandHandler("status", _command_handler("handle_status", settings)))
     application.add_handler(CommandHandler("last_report", _command_handler("handle_last_report", settings)))
@@ -65,6 +68,29 @@ def _command_handler(
             await method(
                 telegram_user_id=update.effective_user.id,
                 chat_id=update.effective_chat.id,
+            )
+
+    return handler
+
+
+def _text_command_handler(
+    method_name: str, settings: Settings
+) -> Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]:
+    async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if update.effective_user is None or update.effective_chat is None:
+            return
+
+        with SessionLocal() as session:
+            service = TelegramCommandService(
+                session=session,
+                gateway=BotGateway(context),
+                settings=settings,
+            )
+            method = getattr(service, method_name)
+            await method(
+                telegram_user_id=update.effective_user.id,
+                chat_id=update.effective_chat.id,
+                meeting_link=" ".join(context.args or []),
             )
 
     return handler
