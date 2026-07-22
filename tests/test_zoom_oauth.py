@@ -6,14 +6,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.zoom import get_zoom_oauth_client
+from app.api.zoom import get_telegram_notifier, get_zoom_oauth_client
 from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
 from app.models import User, ZoomToken
 from app.repositories.zoom_oauth_states import ZoomOAuthStateRepository
+from app.telegram.messages import ZOOM_CONNECTED_TEXT
 from app.zoom.oauth import ZoomOAuthService, ZoomTokenPayload, ZoomUserProfile
+
+
+class FakeTelegramNotifier:
+    def __init__(self) -> None:
+        self.messages: list[tuple[int, str]] = []
+
+    async def send_message(self, chat_id: int, text: str) -> None:
+        self.messages.append((chat_id, text))
 
 
 class FakeZoomOAuthClient:
@@ -140,7 +149,9 @@ def test_zoom_callback_endpoint_saves_token_and_returns_success():
 
     app.dependency_overrides[get_db_session] = override_db_session
     fake_client = FakeZoomOAuthClient()
+    fake_notifier = FakeTelegramNotifier()
     app.dependency_overrides[get_zoom_oauth_client] = lambda: fake_client
+    app.dependency_overrides[get_telegram_notifier] = lambda: fake_notifier
     client = TestClient(app)
 
     response = client.get(f"/api/zoom/oauth/callback?code=zoom-auth-code&state={state.state}")
@@ -149,3 +160,4 @@ def test_zoom_callback_endpoint_saves_token_and_returns_success():
     assert response.json() == {"status": "connected"}
     assert fake_client.exchanged_codes == ["zoom-auth-code"]
     assert session.query(ZoomToken).filter_by(user_id=teacher.id).one().zoom_user_id == "zoom-user-1"
+    assert fake_notifier.messages == [(1001, ZOOM_CONNECTED_TEXT)]

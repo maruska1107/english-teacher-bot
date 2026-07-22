@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
 from app.services.lesson_processing import LessonProcessingService
+from app.telegram.messages import ZOOM_CONNECTED_TEXT
+from app.telegram.notifier import TelegramBotNotifier, TelegramNotifierProtocol
 from app.zoom.oauth import ZoomOAuthClient, ZoomOAuthClientProtocol, ZoomOAuthService
 from app.zoom.webhook_security import encrypted_url_validation_token, verify_zoom_webhook_signature
 from app.zoom.webhooks import ZoomWebhookService
@@ -18,6 +20,12 @@ def get_zoom_oauth_client(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ZoomOAuthClientProtocol:
     return ZoomOAuthClient(settings)
+
+
+def get_telegram_notifier(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TelegramNotifierProtocol:
+    return TelegramBotNotifier(settings)
 
 
 def get_lesson_processing_service(
@@ -34,15 +42,17 @@ async def zoom_oauth_callback(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
     client: Annotated[ZoomOAuthClientProtocol, Depends(get_zoom_oauth_client)],
+    notifier: Annotated[TelegramNotifierProtocol, Depends(get_telegram_notifier)],
 ) -> dict[str, str]:
     service = ZoomOAuthService(session=session, settings=settings)
     try:
-        await service.complete_oauth_callback(code=code, state_token=state, client=client)
+        token = await service.complete_oauth_callback(code=code, state_token=state, client=client)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired OAuth state",
         ) from exc
+    await notifier.send_message(token.user.telegram_user_id, ZOOM_CONNECTED_TEXT)
     return {"status": "connected"}
 
 
