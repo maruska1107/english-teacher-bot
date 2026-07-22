@@ -35,6 +35,7 @@ class LessonProcessingService:
                 settings=self.settings,
                 llm_client=self.llm_client,
             ).analyze_lesson(lesson.id)
+            self._clear_processed_source_data(lesson)
             lesson.processing_status = "completed"
             self.session.commit()
             await self._notifier().send_message(
@@ -74,6 +75,10 @@ class LessonProcessingService:
         )
         lesson.processing_status = "transcript_ready"
         self.session.commit()
+
+    def _clear_processed_source_data(self, lesson: Lesson) -> None:
+        lesson.transcript = None
+        lesson.transcript_download_url = None
 
     def _notifier(self) -> TelegramNotifierProtocol:
         if self.notifier is None:

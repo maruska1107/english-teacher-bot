@@ -93,7 +93,8 @@ async def test_process_pending_lesson_downloads_transcript_analyzes_and_notifies
     await service.process_lesson(lesson.id)
 
     processed_lesson = session.get(Lesson, lesson.id)
-    assert processed_lesson.transcript.startswith("Teacher: What did you do")
+    assert processed_lesson.transcript is None
+    assert processed_lesson.transcript_download_url is None
     assert processed_lesson.processing_status == "completed"
     assert processed_lesson.analysis is not None
     assert notifier.messages[0][0] == 1001
