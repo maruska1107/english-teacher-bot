@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Awaitable, Callable
 
 from telegram import Update
@@ -6,6 +7,8 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal
 from app.telegram.commands import TelegramCommandService
+
+logger = logging.getLogger(__name__)
 
 
 class BotGateway:
@@ -37,7 +40,12 @@ def build_telegram_application(settings: Settings | None = None) -> Application 
     application.add_handler(CommandHandler("status", _command_handler("handle_status", settings)))
     application.add_handler(CommandHandler("last_report", _command_handler("handle_last_report", settings)))
     application.add_handler(CommandHandler("last_error", _command_handler("handle_last_error", settings)))
+    application.add_error_handler(_error_handler)
     return application
+
+
+async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.exception("Telegram update failed", exc_info=context.error)
 
 
 def _command_handler(

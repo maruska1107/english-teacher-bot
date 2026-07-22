@@ -51,6 +51,8 @@ async def test_start_creates_allowed_teacher_and_includes_ai_notice():
     assert gateway.sent_messages == [(555, START_NOTICE_TEXT)]
     assert "уведомить учеников" in gateway.sent_messages[0][1]
     assert "искусственного интеллекта" in gateway.sent_messages[0][1]
+    assert "транскрипт" in gateway.sent_messages[0][1]
+    assert "записи" not in gateway.sent_messages[0][1].lower()
     assert "/connect_zoom" in gateway.sent_messages[0][1]
 
 

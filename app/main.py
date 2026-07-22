@@ -14,9 +14,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.telegram_app = telegram_app
     if telegram_app is not None:
         await telegram_app.initialize()
-        await telegram_app.start()
         if telegram_app.updater is not None:
             await telegram_app.updater.start_polling()
+        await telegram_app.start()
     try:
         yield
     finally:
