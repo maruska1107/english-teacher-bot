@@ -10,7 +10,7 @@ START_NOTICE_TEXT = (
 
 ACCESS_DENIED_TEXT = "У вас нет доступа к этому боту. Обратитесь к администратору."
 ZOOM_CONNECT_NOT_READY_TEXT = "Подключение Zoom будет доступно на следующем этапе реализации OAuth."
-ZOOM_DISCONNECT_NOT_READY_TEXT = "Отключение Zoom будет доступно после реализации OAuth."
+ZOOM_DISCONNECTED_TEXT = "Zoom отключён."
 NO_REPORTS_TEXT = "Отчётов пока нет."
 NO_ERRORS_TEXT = "Ошибок обработки пока нет."
 ADMIN_ONLY_TEXT = "Эта команда доступна только администратору."

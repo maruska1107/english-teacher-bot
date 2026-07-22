@@ -32,6 +32,7 @@ cp .env.example .env
 - `ZOOM_CLIENT_SECRET`
 - `ZOOM_REDIRECT_URI`
 - `ZOOM_WEBHOOK_SECRET_TOKEN`
+- `ZOOM_OAUTH_STATE_TTL_MINUTES` (optional, default `15`)
 - `OPENAI_API_KEY`
 
 3. Start services:
@@ -71,6 +72,8 @@ Admin commands:
 
 The bot only creates teacher users for Telegram IDs listed in `ALLOWED_TELEGRAM_TEACHER_IDS`.
 `TELEGRAM_ADMIN_ID` can access admin status/error commands.
+`/connect_zoom` creates a Zoom OAuth authorization URL with a short-lived state token.
+`/disconnect_zoom` removes the teacher's stored Zoom OAuth tokens.
 
 ## Database schema
 
@@ -78,6 +81,7 @@ Initial MVP tables:
 
 - `users`
 - `zoom_tokens`
+- `zoom_oauth_states`
 - `lessons`
 - `lesson_analysis`
 - `processed_webhook_events`

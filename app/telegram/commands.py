@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.repositories.lessons import LessonRepository
 from app.repositories.users import UserRepository
+from app.repositories.zoom_tokens import ZoomTokenRepository
 from app.telegram.messages import (
     ACCESS_DENIED_TEXT,
     ADMIN_ONLY_TEXT,
@@ -12,8 +13,9 @@ from app.telegram.messages import (
     NO_REPORTS_TEXT,
     START_NOTICE_TEXT,
     ZOOM_CONNECT_NOT_READY_TEXT,
-    ZOOM_DISCONNECT_NOT_READY_TEXT,
+    ZOOM_DISCONNECTED_TEXT,
 )
+from app.zoom.oauth import ZoomOAuthService
 
 
 class TelegramGateway(Protocol):
@@ -33,6 +35,7 @@ class TelegramCommandService:
         self.settings = settings
         self.users = UserRepository(session)
         self.lessons = LessonRepository(session)
+        self.zoom_tokens = ZoomTokenRepository(session)
 
     async def handle_start(self, telegram_user_id: int, chat_id: int) -> None:
         if not self._is_allowed_teacher(telegram_user_id):
@@ -46,12 +49,26 @@ class TelegramCommandService:
     async def handle_connect_zoom(self, telegram_user_id: int, chat_id: int) -> None:
         if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
             return
-        await self.gateway.send_message(chat_id, ZOOM_CONNECT_NOT_READY_TEXT)
+        user = self.users.get_by_telegram_id(telegram_user_id)
+        assert user is not None
+        try:
+            authorization_url = ZoomOAuthService(
+                session=self.session,
+                settings=self.settings,
+            ).build_authorization_url(user)
+        except RuntimeError:
+            await self.gateway.send_message(chat_id, ZOOM_CONNECT_NOT_READY_TEXT)
+            return
+        await self.gateway.send_message(chat_id, f"Подключите Zoom по ссылке:\n{authorization_url}")
 
     async def handle_disconnect_zoom(self, telegram_user_id: int, chat_id: int) -> None:
         if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
             return
-        await self.gateway.send_message(chat_id, ZOOM_DISCONNECT_NOT_READY_TEXT)
+        user = self.users.get_by_telegram_id(telegram_user_id)
+        assert user is not None
+        self.zoom_tokens.delete_for_user(user.id)
+        self.session.commit()
+        await self.gateway.send_message(chat_id, ZOOM_DISCONNECTED_TEXT)
 
     async def handle_status(self, telegram_user_id: int, chat_id: int) -> None:
         if not await self._ensure_allowed_user_or_admin(telegram_user_id, chat_id):

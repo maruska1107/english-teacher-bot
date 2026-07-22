@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.db.base import Base
-from app.models import Lesson, LessonAnalysis, User
+from app.models import Lesson, LessonAnalysis, User, ZoomToken
 from app.telegram.commands import TelegramCommandService
 from app.telegram.messages import START_NOTICE_TEXT
 
@@ -30,6 +30,9 @@ def make_settings(**overrides) -> Settings:
         "app_env": "test",
         "allowed_telegram_teacher_ids": "1001,1002",
         "telegram_admin_id": 9001,
+        "zoom_client_id": "zoom-client-id",
+        "zoom_client_secret": "zoom-client-secret",
+        "zoom_redirect_uri": "https://bot.example.com/api/zoom/oauth/callback",
     }
     defaults.update(overrides)
     return Settings(**defaults)
@@ -204,11 +207,41 @@ async def test_admin_last_error_returns_latest_processing_error():
     assert gateway.sent_messages == [(9001, "Последняя ошибка\nZoom transcript download failed")]
 
 
-async def test_connect_zoom_returns_oauth_placeholder_until_zoom_stage():
+async def test_connect_zoom_returns_oauth_authorization_url():
     session = make_session()
     gateway = FakeTelegramGateway()
     service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
 
     await service.handle_connect_zoom(telegram_user_id=1001, chat_id=555)
 
-    assert gateway.sent_messages == [(555, "Подключение Zoom будет доступно на следующем этапе реализации OAuth.")]
+    assert len(gateway.sent_messages) == 1
+    chat_id, message = gateway.sent_messages[0]
+    assert chat_id == 555
+    assert message.startswith("Подключите Zoom по ссылке:\nhttps://zoom.us/oauth/authorize?")
+    assert "client_id=zoom-client-id" in message
+    assert "state=" in message
+
+
+async def test_disconnect_zoom_removes_teacher_zoom_tokens():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    session.add(
+        ZoomToken(
+            user_id=teacher.id,
+            zoom_account_id="zoom-account-1",
+            zoom_user_id="zoom-user-1",
+            access_token="access",
+            refresh_token="refresh",
+            expires_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+    )
+    session.commit()
+
+    await service.handle_disconnect_zoom(telegram_user_id=1001, chat_id=555)
+
+    assert session.query(ZoomToken).filter_by(user_id=teacher.id).count() == 0
+    assert gateway.sent_messages == [(555, "Zoom отключён.")]

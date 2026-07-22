@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     zoom_client_secret: SecretStr | None = None
     zoom_redirect_uri: str | None = None
     zoom_webhook_secret_token: SecretStr | None = None
+    zoom_oauth_state_ttl_minutes: int = 15
 
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4.1-mini"
