@@ -10,7 +10,7 @@ from app.repositories.users import UserRepository
 from app.repositories.zoom_meeting_subscriptions import ZoomMeetingSubscriptionRepository
 from app.repositories.zoom_tokens import ZoomTokenRepository
 from app.telegram.messages import (
-    ACCESS_DENIED_TEXT,
+    ACCESS_DENIED_TEMPLATE,
     ADMIN_ONLY_TEXT,
     NO_ERRORS_TEXT,
     NO_REPORTS_TEXT,
@@ -70,7 +70,7 @@ class TelegramCommandService:
 
     async def handle_start(self, telegram_user_id: int, chat_id: int) -> None:
         if not self._is_allowed_teacher(telegram_user_id):
-            await self.gateway.send_message(chat_id, ACCESS_DENIED_TEXT)
+            await self._send_access_denied(chat_id, telegram_user_id)
             return
 
         self.users.get_or_create_teacher(telegram_user_id)
@@ -182,17 +182,23 @@ class TelegramCommandService:
     def _is_allowed_teacher(self, telegram_user_id: int) -> bool:
         return telegram_user_id in self.settings.allowed_teacher_ids
 
+    async def _send_access_denied(self, chat_id: int, telegram_user_id: int) -> None:
+        await self.gateway.send_message(
+            chat_id,
+            ACCESS_DENIED_TEMPLATE.format(telegram_user_id=telegram_user_id),
+        )
+
     async def _ensure_allowed_teacher(self, telegram_user_id: int, chat_id: int) -> bool:
         if self._is_allowed_teacher(telegram_user_id):
             if self.users.get_by_telegram_id(telegram_user_id) is None:
                 self.users.get_or_create_teacher(telegram_user_id)
                 self.session.commit()
             return True
-        await self.gateway.send_message(chat_id, ACCESS_DENIED_TEXT)
+        await self._send_access_denied(chat_id, telegram_user_id)
         return False
 
     async def _ensure_allowed_user_or_admin(self, telegram_user_id: int, chat_id: int) -> bool:
         if telegram_user_id == self.settings.telegram_admin_id or self._is_allowed_teacher(telegram_user_id):
             return True
-        await self.gateway.send_message(chat_id, ACCESS_DENIED_TEXT)
+        await self._send_access_denied(chat_id, telegram_user_id)
         return False

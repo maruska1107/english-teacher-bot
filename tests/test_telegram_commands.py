@@ -67,7 +67,14 @@ async def test_start_rejects_non_allowed_teacher_without_creating_user():
     await service.handle_start(telegram_user_id=7777, chat_id=777)
 
     assert session.query(User).count() == 0
-    assert gateway.sent_messages == [(777, "У вас нет доступа к этому боту. Обратитесь к администратору.")]
+    assert gateway.sent_messages == [
+        (
+            777,
+            "У вас нет доступа к этому боту.\n\n"
+            "Ваш Telegram ID: 7777\n"
+            "Передайте этот ID администратору для подключения.",
+        )
+    ]
 
 
 async def test_status_reports_zoom_connection_and_lesson_count():

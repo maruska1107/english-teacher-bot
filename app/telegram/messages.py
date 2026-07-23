@@ -8,7 +8,11 @@ START_NOTICE_TEXT = (
     "Чтобы подключить Zoom, отправьте команду /connect_zoom."
 )
 
-ACCESS_DENIED_TEXT = "У вас нет доступа к этому боту. Обратитесь к администратору."
+ACCESS_DENIED_TEMPLATE = (
+    "У вас нет доступа к этому боту.\n\n"
+    "Ваш Telegram ID: {telegram_user_id}\n"
+    "Передайте этот ID администратору для подключения."
+)
 ZOOM_CONNECT_NOT_READY_TEXT = "Подключение Zoom будет доступно на следующем этапе реализации OAuth."
 ZOOM_DISCONNECTED_TEXT = "Zoom отключён."
 ZOOM_CONNECTED_TEXT = (
