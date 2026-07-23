@@ -161,3 +161,8 @@ def test_zoom_callback_endpoint_saves_token_and_returns_success():
     assert fake_client.exchanged_codes == ["zoom-auth-code"]
     assert session.query(ZoomToken).filter_by(user_id=teacher.id).one().zoom_user_id == "zoom-user-1"
     assert fake_notifier.messages == [(1001, ZOOM_CONNECTED_TEXT)]
+    confirmation_text = fake_notifier.messages[0][1]
+    assert "Zoom Web Portal" in confirmation_text
+    assert "Settings → Recording" in confirmation_text
+    assert "Cloud recording" in confirmation_text
+    assert "Audio transcription" in confirmation_text
