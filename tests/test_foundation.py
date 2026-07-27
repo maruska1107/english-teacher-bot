@@ -62,6 +62,29 @@ def test_zoom_landing_page_explains_oauth_flow():
     assert head_response.headers["content-type"].startswith("text/html")
 
 
+def test_marketplace_required_pages_are_available():
+    app = create_app()
+    client = TestClient(app)
+
+    expected_pages = {
+        "/privacy": ["Privacy Policy", "data subject rights", "Zoom OAuth", "video recordings"],
+        "/terms": ["Terms of Use", "English Tutor AI", "Zoom", "Telegram"],
+        "/support": ["Support", "EnglishTutorHelperAIBot", "Telegram"],
+        "/documentation": ["Zoom App Documentation", "/connect_zoom", "/disconnect_zoom", "remove"],
+    }
+
+    for path, expected_texts in expected_pages.items():
+        response = client.get(path)
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/html")
+        for expected_text in expected_texts:
+            assert expected_text in response.text
+
+        head_response = client.head(path)
+        assert head_response.status_code == 200
+
+
 def test_database_schema_supports_required_user_owned_entities():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
