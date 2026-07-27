@@ -53,6 +53,7 @@ def test_zoom_landing_page_explains_oauth_flow():
     assert "English Tutor AI" in response.text
     assert "Open Telegram Bot" in response.text
     assert "https://t.me/EnglishTutorHelperAIBot" in response.text
+    assert "ZOOM_verify_c5df37580d2446f59658896a833eec7a" in response.text
     assert "does not store video recordings" in response.text
     assert "/connect_zoom" in response.text
 

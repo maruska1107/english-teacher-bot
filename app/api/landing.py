@@ -52,6 +52,7 @@ def _page(title: str, body: str) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="zoom-domain-verification" content="ZOOM_verify_c5df37580d2446f59658896a833eec7a">
   <title>{title}</title>
   <style>{STYLE}</style>
 </head>
