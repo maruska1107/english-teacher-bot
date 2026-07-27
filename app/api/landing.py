@@ -70,6 +70,16 @@ def _head_response() -> str:
     return ""
 
 
+@router.head("/", response_class=HTMLResponse)
+def root_landing_page_head() -> str:
+    return _head_response()
+
+
+@router.get("/", response_class=HTMLResponse)
+def root_landing_page() -> str:
+    return zoom_landing_page()
+
+
 @router.head("/zoom", response_class=HTMLResponse)
 def zoom_landing_page_head() -> str:
     return _head_response()

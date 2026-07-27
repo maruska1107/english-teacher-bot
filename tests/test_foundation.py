@@ -46,6 +46,13 @@ def test_zoom_landing_page_explains_oauth_flow():
     app = create_app()
     client = TestClient(app)
 
+    root_response = client.get("/")
+    assert root_response.status_code == 200
+    assert "ZOOM_verify_c5df37580d2446f59658896a833eec7a" in root_response.text
+
+    root_head_response = client.head("/")
+    assert root_head_response.status_code == 200
+
     response = client.get("/zoom")
 
     assert response.status_code == 200
