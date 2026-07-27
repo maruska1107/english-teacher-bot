@@ -42,6 +42,26 @@ def test_health_endpoint_returns_static_status_without_database():
     assert response.json() == {"status": "ok", "service": "english-teacher-bot"}
 
 
+def test_zoom_landing_page_explains_oauth_flow():
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.get("/zoom")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "English Tutor AI" in response.text
+    assert "Open Telegram Bot" in response.text
+    assert "https://t.me/EnglishTutorHelperAIBot" in response.text
+    assert "does not store video recordings" in response.text
+    assert "/connect_zoom" in response.text
+
+    head_response = client.head("/zoom")
+
+    assert head_response.status_code == 200
+    assert head_response.headers["content-type"].startswith("text/html")
+
+
 def test_database_schema_supports_required_user_owned_entities():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
