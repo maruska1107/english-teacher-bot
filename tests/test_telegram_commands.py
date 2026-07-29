@@ -5,7 +5,16 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.db.base import Base
-from app.models import LearningProfile, Lesson, LessonAnalysis, Student, User, ZoomMeetingSubscription, ZoomToken
+from app.models import (
+    LearningProfile,
+    Lesson,
+    LessonAnalysis,
+    Student,
+    User,
+    VocabularyCard,
+    ZoomMeetingSubscription,
+    ZoomToken,
+)
 from app.telegram.commands import TelegramCommandService
 from app.telegram.invites import hash_invite_token
 from app.telegram.messages import START_NOTICE_TEXT
@@ -170,6 +179,56 @@ async def test_start_rejects_non_allowed_teacher_without_creating_user():
             "Передайте этот ID администратору для подключения.",
         )
     ]
+
+
+async def test_dev_seed_data_admin_command_recreates_test_profile_lessons_and_cards():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(
+        session=session,
+        gateway=gateway,
+        settings=make_settings(telegram_admin_id=956230172),
+    )
+
+    await service.handle_dev_seed_data(telegram_user_id=956230172, chat_id=956230172)
+    await service.handle_dev_seed_data(telegram_user_id=956230172, chat_id=956230172)
+
+    teacher = session.query(User).filter_by(telegram_user_id=956230172).one()
+    student = session.query(Student).filter_by(telegram_user_id=956230172, teacher_user_id=teacher.id).one()
+    profile = session.query(LearningProfile).filter_by(teacher_user_id=teacher.id, name="Тест Мария").one()
+    lessons = session.query(Lesson).filter_by(teacher_user_id=teacher.id, learning_profile_id=profile.id).all()
+    cards = session.query(VocabularyCard).filter_by(teacher_user_id=teacher.id, learning_profile_id=profile.id).all()
+
+    assert student.name == "Тест Мария"
+    assert student.invite_status == "used"
+    assert len(profile.memberships) == 1
+    assert len(lessons) == 2
+    assert session.query(LessonAnalysis).join(Lesson).filter(Lesson.learning_profile_id == profile.id).count() == 2
+    assert sorted(card.status for card in cards) == ["draft", "draft", "published", "published"]
+    assert gateway.sent_messages[-1] == (
+        956230172,
+        "Тестовые данные готовы ✅\n\n"
+        "Профиль: Тест Мария\n"
+        "Уроков: 2\n"
+        "Draft-карточек: 2\n"
+        "Published-карточек: 2\n\n"
+        "Откройте /cards для преподавательского WebApp или /start для ученического WebApp.",
+    )
+
+
+async def test_dev_seed_data_is_admin_only():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(
+        session=session,
+        gateway=gateway,
+        settings=make_settings(telegram_admin_id=956230172),
+    )
+
+    await service.handle_dev_seed_data(telegram_user_id=1001, chat_id=555)
+
+    assert session.query(LearningProfile).count() == 0
+    assert gateway.sent_messages == [(555, "Эта команда доступна только администратору.")]
 
 
 async def test_status_reports_zoom_connection_and_lesson_count():

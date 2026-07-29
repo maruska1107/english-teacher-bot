@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, urlparse
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.models import LearningProfile, LearningProfileMember, Lesson, LessonAnalysis, Student, VocabularyCard
 from app.repositories.learning_profiles import LearningProfileRepository
 from app.repositories.lessons import LessonRepository
 from app.repositories.students import StudentRepository
@@ -207,6 +208,102 @@ class TelegramCommandService:
         self.zoom_tokens.delete_for_user(user.id)
         self.session.commit()
         await self.gateway.send_message(chat_id, ZOOM_DISCONNECTED_TEXT)
+
+    async def handle_dev_seed_data(self, telegram_user_id: int, chat_id: int) -> None:
+        if telegram_user_id != self.settings.telegram_admin_id:
+            await self.gateway.send_message(chat_id, ADMIN_ONLY_TEXT)
+            return
+        teacher = self.users.get_or_create_teacher(telegram_user_id)
+        self.session.flush()
+        profile_name = "Тест Мария"
+
+        existing_profile = self.learning_profiles.get_by_teacher_and_name(teacher.id, profile_name)
+        if existing_profile is not None:
+            for lesson in list(existing_profile.lessons):
+                self.session.delete(lesson)
+            for card in list(existing_profile.vocabulary_cards):
+                self.session.delete(card)
+            for membership in list(existing_profile.memberships):
+                self.session.delete(membership)
+            self.session.delete(existing_profile)
+            self.session.flush()
+
+        existing_student = self.students.get_by_telegram_user_id(telegram_user_id)
+        if existing_student is not None and existing_student.teacher_user_id != teacher.id:
+            existing_student.telegram_user_id = None
+            self.session.flush()
+        student = self.students.get_by_teacher_and_name(teacher.id, profile_name)
+        if student is None:
+            student = Student(teacher_user_id=teacher.id, name=profile_name)
+            self.session.add(student)
+            self.session.flush()
+        student.telegram_user_id = telegram_user_id
+        student.invite_status = "used"
+        student.invite_token_hash = None
+
+        profile = LearningProfile(
+            teacher_user_id=teacher.id,
+            name=profile_name,
+            profile_type="individual",
+            card_publish_mode="manual_review",
+        )
+        self.session.add(profile)
+        self.session.flush()
+        self.session.add(LearningProfileMember(learning_profile_id=profile.id, student_id=student.id))
+        self.session.flush()
+
+        lessons = []
+        for index in range(1, 3):
+            lesson = Lesson(
+                teacher_user_id=teacher.id,
+                learning_profile_id=profile.id,
+                meeting_id=f"dev-meeting-{index}",
+                meeting_uuid=f"dev-seed-{telegram_user_id}-{index}",
+                processing_status="completed",
+            )
+            self.session.add(lesson)
+            self.session.flush()
+            self.session.add(
+                LessonAnalysis(
+                    lesson_id=lesson.id,
+                    analysis_json={"summary": f"Тестовый урок {index}"},
+                    teacher_report=f"Тестовый отчёт по уроку {index}.",
+                    student_message=f"Сообщение ученику по тестовому уроку {index}.",
+                    model="dev-seed",
+                    prompt_version="dev-seed-v1",
+                )
+            )
+            lessons.append(lesson)
+
+        seed_cards = [
+            ("journey", "путешествие", "published", lessons[0].id),
+            ("improve", "улучшать", "published", lessons[0].id),
+            ("fluency", "беглость речи", "draft", lessons[1].id),
+            ("make progress", "делать успехи", "draft", lessons[1].id),
+        ]
+        for term, translation, card_status, lesson_id in seed_cards:
+            self.session.add(
+                VocabularyCard(
+                    teacher_user_id=teacher.id,
+                    learning_profile_id=profile.id,
+                    lesson_id=lesson_id,
+                    term=term,
+                    translation_ru=translation,
+                    example_sentence=f"Test example with {term}.",
+                    status=card_status,
+                )
+            )
+
+        self.session.commit()
+        await self.gateway.send_message(
+            chat_id,
+            "Тестовые данные готовы ✅\n\n"
+            "Профиль: Тест Мария\n"
+            "Уроков: 2\n"
+            "Draft-карточек: 2\n"
+            "Published-карточек: 2\n\n"
+            "Откройте /cards для преподавательского WebApp или /start для ученического WebApp.",
+        )
 
     async def handle_status(self, telegram_user_id: int, chat_id: int) -> None:
         if not await self._ensure_allowed_user_or_admin(telegram_user_id, chat_id):

@@ -61,6 +61,7 @@ async def test_register_bot_commands_sets_telegram_command_menu():
         "add_zoom_meeting",
         "last_report",
         "last_error",
+        "dev_seed_data",
     ]
     assert all(command.description for command in BOT_COMMANDS)
 

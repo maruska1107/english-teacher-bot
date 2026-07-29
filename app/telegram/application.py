@@ -22,6 +22,7 @@ BOT_COMMANDS = (
     BotCommand("add_zoom_meeting", "Добавить Zoom-конференцию"),
     BotCommand("last_report", "Показать последний отчёт"),
     BotCommand("last_error", "Показать последнюю ошибку"),
+    BotCommand("dev_seed_data", "Создать тестовые данные"),
 )
 
 
@@ -81,6 +82,7 @@ def build_telegram_application(settings: Settings | None = None) -> Application 
     application.add_handler(CommandHandler("status", _command_handler("handle_status", settings)))
     application.add_handler(CommandHandler("last_report", _command_handler("handle_last_report", settings)))
     application.add_handler(CommandHandler("last_error", _command_handler("handle_last_error", settings)))
+    application.add_handler(CommandHandler("dev_seed_data", _command_handler("handle_dev_seed_data", settings)))
     application.add_error_handler(_error_handler)
     return application
 
