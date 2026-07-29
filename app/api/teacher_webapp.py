@@ -282,9 +282,9 @@ function renderSelectedProfile() {
         <button class="${isNewTab ? "tab-active" : "secondary"}" data-action="tab-draft">Новые карточки</button>
         <button class="${!isNewTab ? "tab-active" : "secondary"}" data-action="tab-published">Опубликованные</button>
       </div>
-      ${isNewTab ? addWordPanel() : ""}
       <div id="profile-cards">${cardHtml}</div>
       <div class="actions">${publishButton}</div>
+      ${isNewTab ? addWordPanel() : ""}
     </section>`;
 }
 
