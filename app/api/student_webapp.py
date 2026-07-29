@@ -25,11 +25,13 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
 .study-area { margin-top: 12px; }
 .study-progress { margin: 8px 0 14px; color: var(--tg-theme-hint-color, #6b7280); font-weight: 700; }
 .flashcard {
-  min-height: 270px;
+  min-height: 340px;
+  max-height: 340px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 12px;
+  overflow-y: auto;
   margin: 14px 0;
   padding: 28px 22px;
   border: 1px solid var(--tg-theme-section_separator_color, #e5e7eb);
@@ -182,12 +184,16 @@ function flipCard() {
 }
 
 function listCardTemplate(card) {
+  const action = card.status === "known"
+    ? '<button class="learning" data-list-progress="learning">Учить</button>'
+    : '<button class="known" data-list-progress="known">Знаю</button>';
   return `
     <article class="list-card" data-card-id="${card.id}">
       <strong>${escapeHtml(card.term)}</strong>
       <div>${escapeHtml(card.translation_ru)}</div>
       ${card.example_sentence ? `<div>${escapeHtml(card.example_sentence)}</div>` : ""}
       <span class="badge">${escapeHtml(card.status)}</span>
+      <div class="actions">${action}</div>
     </article>`;
 }
 
@@ -202,12 +208,17 @@ function renderList() {
   setStatus(`Карточек: ${allCards.length}`);
 }
 
-async function updateProgress(cardId, progress) {
+async function updateProgress(cardId, progress, after = "study") {
   const result = await api(`/api/student/cards/${cardId}/progress`, {
     method: "POST",
     body: JSON.stringify({ status: progress }),
   });
   allCards = allCards.map((card) => (card.id === Number(cardId) ? { ...card, status: result.status } : card));
+  if (after === "list") {
+    renderList();
+    setStatus(progress === "known" ? "Отмечено как известно" : "Возвращено в режим заучивания");
+    return;
+  }
   if (progress === "known") {
     studyCards = getStudyCards();
   } else {
@@ -252,6 +263,20 @@ studyEl.addEventListener("click", async (event) => {
   }
   if (event.target.closest("[data-flashcard]")) {
     flipCard();
+  }
+});
+
+listEl.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-list-progress]");
+  if (!button) return;
+  const cardEl = button.closest("[data-card-id]");
+  const cardId = cardEl.dataset.cardId;
+  button.disabled = true;
+  try {
+    await updateProgress(cardId, button.dataset.listProgress, "list");
+  } catch (error) {
+    setStatus(`Ошибка: ${error.message}`);
+    button.disabled = false;
   }
 });
 
