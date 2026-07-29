@@ -92,9 +92,16 @@ def test_teacher_cards_webapp_page_is_available():
     assert response.headers["content-type"].startswith("text/html")
     assert "Telegram.WebApp" in response.text
     assert "x-telegram-init-data" in response.text
-    assert "/api/teacher/cards?status=draft" in response.text
-    assert "publish" in response.text
-    assert "archive" in response.text
+    assert "/api/teacher/cards" in response.text
+    assert "/api/teacher/card-profiles" in response.text
+    assert "Новые карточки" in response.text
+    assert "Опубликованные" in response.text
+    assert "+ Добавить слово" in response.text
+    assert "Опубликовать все карточки" in response.text
+    assert "Удалить" in response.text
+    assert "+N новых слов" in response.text
+    assert "Профилей пока нет" in response.text
+    assert "archive" not in response.text
 
     head_response = client.head("/teacher/cards")
     assert head_response.status_code == 200
