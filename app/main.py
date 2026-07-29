@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from app.api.router import api_router
 from app.core.config import get_settings
-from app.telegram.application import build_telegram_application
+from app.telegram.application import build_telegram_application, register_bot_commands
 
 
 @asynccontextmanager
@@ -14,6 +14,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.telegram_app = telegram_app
     if telegram_app is not None:
         await telegram_app.initialize()
+        await register_bot_commands(telegram_app)
         if telegram_app.updater is not None:
             await telegram_app.updater.start_polling()
         await telegram_app.start()
