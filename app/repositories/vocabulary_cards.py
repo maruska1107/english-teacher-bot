@@ -1,6 +1,10 @@
+from datetime import UTC, datetime
+
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import VocabularyCard
+from app.schemas.cards import VocabularyCardUpdate
 
 
 class VocabularyCardRepository:
@@ -33,3 +37,39 @@ class VocabularyCardRepository:
         self.session.add_all(saved_cards)
         self.session.flush()
         return saved_cards
+
+    def list_for_teacher(
+        self,
+        teacher_user_id: int,
+        learning_profile_id: int | None = None,
+        status: str | None = None,
+    ) -> list[VocabularyCard]:
+        query = select(VocabularyCard).where(VocabularyCard.teacher_user_id == teacher_user_id)
+        if learning_profile_id is not None:
+            query = query.where(VocabularyCard.learning_profile_id == learning_profile_id)
+        if status is not None:
+            query = query.where(VocabularyCard.status == status)
+        query = query.order_by(VocabularyCard.created_at.desc(), VocabularyCard.id.desc())
+        return list(self.session.scalars(query))
+
+    def get_for_teacher(self, teacher_user_id: int, card_id: int) -> VocabularyCard | None:
+        return self.session.scalar(
+            select(VocabularyCard).where(
+                VocabularyCard.teacher_user_id == teacher_user_id,
+                VocabularyCard.id == card_id,
+            )
+        )
+
+    def update_card(self, card: VocabularyCard, payload: VocabularyCardUpdate) -> VocabularyCard:
+        update_data = payload.model_dump(exclude_unset=True)
+        for field_name, value in update_data.items():
+            setattr(card, field_name, value.strip() if isinstance(value, str) else value)
+        self.session.flush()
+        return card
+
+    def set_status(self, card: VocabularyCard, status: str) -> VocabularyCard:
+        card.status = status
+        if status == "published" and card.published_at is None:
+            card.published_at = datetime.now(UTC)
+        self.session.flush()
+        return card
