@@ -123,6 +123,12 @@ def test_student_cards_webapp_page_is_available():
     assert "data-list-progress" in response.text
     assert "min-height: 340px" in response.text
     assert "overflow-y: auto" in response.text
+    assert "Мой прогресс" in response.text
+    assert "Новые карточки" in response.text
+    assert "progressSummary" in response.text
+    assert "newCardsSummary" in response.text
+    assert "knownPercent" in response.text
+    assert "Осталось учить" in response.text
 
     head_response = client.head("/student/cards")
     assert head_response.status_code == 200
