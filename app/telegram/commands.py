@@ -5,10 +5,13 @@ from urllib.parse import parse_qs, urlparse
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.repositories.learning_profiles import LearningProfileRepository
 from app.repositories.lessons import LessonRepository
+from app.repositories.students import StudentRepository
 from app.repositories.users import UserRepository
 from app.repositories.zoom_meeting_subscriptions import ZoomMeetingSubscriptionRepository
 from app.repositories.zoom_tokens import ZoomTokenRepository
+from app.telegram.invites import build_student_invite_link, generate_invite_token, hash_invite_token
 from app.telegram.messages import (
     ACCESS_DENIED_TEMPLATE,
     ADMIN_ONLY_TEXT,
@@ -64,11 +67,20 @@ class TelegramCommandService:
         self.gateway = gateway
         self.settings = settings
         self.users = UserRepository(session)
+        self.students = StudentRepository(session)
+        self.learning_profiles = LearningProfileRepository(session)
         self.lessons = LessonRepository(session)
         self.zoom_meeting_subscriptions = ZoomMeetingSubscriptionRepository(session)
         self.zoom_tokens = ZoomTokenRepository(session)
 
-    async def handle_start(self, telegram_user_id: int, chat_id: int) -> None:
+    async def handle_start(self, telegram_user_id: int, chat_id: int, start_payload: str = "") -> None:
+        if start_payload.startswith("student_"):
+            await self._handle_student_invite_start(
+                telegram_user_id=telegram_user_id,
+                chat_id=chat_id,
+                raw_token=start_payload.removeprefix("student_"),
+            )
+            return
         if not self._is_allowed_teacher(telegram_user_id):
             await self._send_access_denied(chat_id, telegram_user_id)
             return
@@ -110,6 +122,52 @@ class TelegramCommandService:
         await self.gateway.send_message(
             chat_id,
             ZOOM_MEETING_SUBSCRIBED_TEMPLATE.format(meeting_id=meeting_id),
+        )
+
+    async def handle_add_student(self, telegram_user_id: int, chat_id: int, student_name: str = "") -> None:
+        if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
+            return
+        normalized_name = student_name.strip()
+        if not normalized_name:
+            await self.gateway.send_message(chat_id, "Пришлите имя ученика в формате:\n/add_student Анна")
+            return
+        user = self.users.get_by_telegram_id(telegram_user_id)
+        assert user is not None
+        profile, student = self.learning_profiles.create_individual_profile(
+            teacher_user_id=user.id,
+            student_name=normalized_name,
+        )
+        invite_link = self._refresh_student_invite_link(student)
+        self.session.commit()
+        await self.gateway.send_message(
+            chat_id,
+            f"Ученик создан ✅\n\nСсылка для ученика {student.name}:\n{invite_link}",
+        )
+
+    async def handle_add_group(self, telegram_user_id: int, chat_id: int, group_spec: str = "") -> None:
+        if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
+            return
+        group_name, member_names = self._parse_group_spec(group_spec)
+        if group_name is None or not member_names:
+            await self.gateway.send_message(
+                chat_id,
+                "Пришлите группу в формате:\n/add_group Название группы: Анна, Мария",
+            )
+            return
+        user = self.users.get_by_telegram_id(telegram_user_id)
+        assert user is not None
+        profile = self.learning_profiles.create_group_profile(
+            teacher_user_id=user.id,
+            profile_name=group_name,
+            member_names=member_names,
+        )
+        invite_lines = []
+        for member in sorted(profile.memberships, key=lambda profile_member: profile_member.student.name):
+            invite_lines.append(f"{member.student.name}: {self._refresh_student_invite_link(member.student)}")
+        self.session.commit()
+        await self.gateway.send_message(
+            chat_id,
+            "Группа создана ✅\n\n" f"{profile.name}\n\n" "Ссылки для учеников:\n" + "\n".join(invite_lines),
         )
 
     async def handle_disconnect_zoom(self, telegram_user_id: int, chat_id: int) -> None:
@@ -178,6 +236,41 @@ class TelegramCommandService:
 
         error = self.lessons.latest_processing_error()
         await self.gateway.send_message(chat_id, f"Последняя ошибка\n{error}" if error else NO_ERRORS_TEXT)
+
+    def _refresh_student_invite_link(self, student) -> str:
+        raw_token = generate_invite_token()
+        student.invite_token_hash = hash_invite_token(raw_token)
+        student.invite_status = "active"
+        return build_student_invite_link(self.settings.telegram_bot_username, raw_token)
+
+    def _parse_group_spec(self, group_spec: str) -> tuple[str | None, list[str]]:
+        if ":" not in group_spec:
+            return None, []
+        group_name, raw_members = group_spec.split(":", 1)
+        member_names = []
+        seen_names = set()
+        for raw_name in raw_members.split(","):
+            name = raw_name.strip()
+            if name and name not in seen_names:
+                member_names.append(name)
+                seen_names.add(name)
+        return group_name.strip() or None, member_names
+
+    async def _handle_student_invite_start(self, telegram_user_id: int, chat_id: int, raw_token: str) -> None:
+        student = self.students.get_by_invite_token_hash(hash_invite_token(raw_token))
+        if student is None:
+            await self.gateway.send_message(
+                chat_id,
+                "Ссылка недействительна или устарела. Попросите преподавателя отправить новую ссылку.",
+            )
+            return
+        student.telegram_user_id = telegram_user_id
+        student.invite_status = "used"
+        self.session.commit()
+        await self.gateway.send_message(
+            chat_id,
+            f"Готово ✅\nВы подключены как ученик: {student.name}.\n\nСкоро здесь появятся карточки после уроков.",
+        )
 
     def _is_allowed_teacher(self, telegram_user_id: int) -> bool:
         return telegram_user_id in self.settings.allowed_teacher_ids

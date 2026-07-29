@@ -25,3 +25,11 @@ class StudentRepository:
         self.session.add(student)
         self.session.flush()
         return student
+
+    def get_by_invite_token_hash(self, invite_token_hash: str) -> Student | None:
+        return self.session.scalar(
+            select(Student).where(
+                Student.invite_token_hash == invite_token_hash,
+                Student.invite_status == "active",
+            )
+        )

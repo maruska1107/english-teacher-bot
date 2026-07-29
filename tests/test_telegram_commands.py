@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.db.base import Base
-from app.models import Lesson, LessonAnalysis, User, ZoomMeetingSubscription, ZoomToken
+from app.models import LearningProfile, Lesson, LessonAnalysis, Student, User, ZoomMeetingSubscription, ZoomToken
 from app.telegram.commands import TelegramCommandService
+from app.telegram.invites import hash_invite_token
 from app.telegram.messages import START_NOTICE_TEXT
 
 
@@ -33,6 +34,7 @@ def make_settings(**overrides) -> Settings:
         "zoom_client_id": "zoom-client-id",
         "zoom_client_secret": "zoom-client-secret",
         "zoom_redirect_uri": "https://bot.example.com/api/zoom/oauth/callback",
+        "telegram_bot_username": "EnglishTutorHelperAIBot",
     }
     defaults.update(overrides)
     return Settings(**defaults)
@@ -57,6 +59,54 @@ async def test_start_creates_allowed_teacher_and_includes_ai_notice():
     assert "не хранит" in gateway.sent_messages[0][1].lower()
     assert "удаляет" in gateway.sent_messages[0][1].lower()
     assert "/connect_zoom" in gateway.sent_messages[0][1]
+
+
+async def test_start_with_student_invite_links_student_telegram_account():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    student = Student(
+        teacher_user_id=teacher.id,
+        name="Анна",
+        invite_token_hash=hash_invite_token("invite-token"),
+        invite_status="active",
+    )
+    session.add(student)
+    session.commit()
+
+    await service.handle_start(
+        telegram_user_id=222333444,
+        chat_id=222333444,
+        start_payload="student_invite-token",
+    )
+
+    session.refresh(student)
+    assert student.telegram_user_id == 222333444
+    assert student.invite_status == "used"
+    assert gateway.sent_messages == [
+        (
+            222333444,
+            "Готово ✅\n" "Вы подключены как ученик: Анна.\n\n" "Скоро здесь появятся карточки после уроков.",
+        )
+    ]
+
+
+async def test_start_with_invalid_student_invite_returns_error_without_linking():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.handle_start(telegram_user_id=222333444, chat_id=222333444, start_payload="student_missing")
+
+    assert gateway.sent_messages == [
+        (
+            222333444,
+            "Ссылка недействительна или устарела. Попросите преподавателя отправить новую ссылку.",
+        )
+    ]
 
 
 async def test_start_rejects_non_allowed_teacher_without_creating_user():
@@ -217,6 +267,59 @@ async def test_admin_last_error_returns_latest_processing_error():
     await service.handle_last_error(telegram_user_id=9001, chat_id=9001)
 
     assert gateway.sent_messages == [(9001, "Последняя ошибка\nZoom transcript download failed")]
+
+
+async def test_add_student_creates_individual_profile_and_invite_link():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.handle_add_student(telegram_user_id=1001, chat_id=555, student_name="Анна")
+
+    student = session.query(Student).filter_by(name="Анна").one()
+    profile = session.query(LearningProfile).filter_by(name="Анна").one()
+    assert profile.profile_type == "individual"
+    assert profile.memberships[0].student_id == student.id
+    assert student.invite_token_hash is not None
+    assert "Ссылка для ученика Анна:" in gateway.sent_messages[0][1]
+    assert "https://t.me/EnglishTutorHelperAIBot?start=student_" in gateway.sent_messages[0][1]
+    assert student.invite_token_hash not in gateway.sent_messages[0][1]
+
+
+async def test_add_group_creates_group_profile_members_and_invite_links():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.handle_add_group(
+        telegram_user_id=1001,
+        chat_id=555,
+        group_spec="Speaking B1: Мария, Катя, Мария",
+    )
+
+    profile = session.query(LearningProfile).filter_by(name="Speaking B1").one()
+    assert profile.profile_type == "group"
+    assert sorted(member.student.name for member in profile.memberships) == ["Катя", "Мария"]
+    message = gateway.sent_messages[0][1]
+    assert "Группа создана ✅" in message
+    assert "Speaking B1" in message
+    assert "Мария: https://t.me/EnglishTutorHelperAIBot?start=student_" in message
+    assert "Катя: https://t.me/EnglishTutorHelperAIBot?start=student_" in message
+
+
+async def test_add_group_returns_help_for_invalid_format():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.handle_add_group(telegram_user_id=1001, chat_id=555, group_spec="Speaking B1")
+
+    assert gateway.sent_messages == [
+        (
+            555,
+            "Пришлите группу в формате:\n/add_group Название группы: Анна, Мария",
+        )
+    ]
 
 
 async def test_connect_zoom_returns_oauth_authorization_url():

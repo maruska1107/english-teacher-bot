@@ -39,10 +39,16 @@ def build_telegram_application(settings: Settings | None = None) -> Application 
         return None
     token = token_secret.get_secret_value()
     application = Application.builder().token(token).build()
-    application.add_handler(CommandHandler("start", _command_handler("handle_start", settings)))
+    application.add_handler(CommandHandler("start", _start_handler(settings)))
     application.add_handler(CommandHandler("connect_zoom", _command_handler("handle_connect_zoom", settings)))
     application.add_handler(
-        CommandHandler("add_zoom_meeting", _text_command_handler("handle_add_zoom_meeting", settings))
+        CommandHandler("add_student", _text_command_handler("handle_add_student", settings, "student_name"))
+    )
+    application.add_handler(
+        CommandHandler("add_group", _text_command_handler("handle_add_group", settings, "group_spec"))
+    )
+    application.add_handler(
+        CommandHandler("add_zoom_meeting", _text_command_handler("handle_add_zoom_meeting", settings, "meeting_link"))
     )
     application.add_handler(CommandHandler("disconnect_zoom", _command_handler("handle_disconnect_zoom", settings)))
     application.add_handler(CommandHandler("status", _command_handler("handle_status", settings)))
@@ -54,6 +60,26 @@ def build_telegram_application(settings: Settings | None = None) -> Application 
 
 async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.exception("Telegram update failed", exc_info=context.error)
+
+
+def _start_handler(settings: Settings) -> Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]:
+    async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if update.effective_user is None or update.effective_chat is None:
+            return
+
+        with SessionLocal() as session:
+            service = TelegramCommandService(
+                session=session,
+                gateway=BotGateway(context, settings),
+                settings=settings,
+            )
+            await service.handle_start(
+                telegram_user_id=update.effective_user.id,
+                chat_id=update.effective_chat.id,
+                start_payload=" ".join(context.args or []),
+            )
+
+    return handler
 
 
 def _command_handler(
@@ -79,7 +105,7 @@ def _command_handler(
 
 
 def _text_command_handler(
-    method_name: str, settings: Settings
+    method_name: str, settings: Settings, text_parameter_name: str
 ) -> Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]:
     async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if update.effective_user is None or update.effective_chat is None:
@@ -95,7 +121,7 @@ def _text_command_handler(
             await method(
                 telegram_user_id=update.effective_user.id,
                 chat_id=update.effective_chat.id,
-                meeting_link=" ".join(context.args or []),
+                **{text_parameter_name: " ".join(context.args or [])},
             )
 
     return handler

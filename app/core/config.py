@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     postgres_db: str = "english_teacher_bot"
 
     telegram_bot_token: SecretStr | None = None
+    telegram_bot_username: str = "EnglishTutorHelperAIBot"
     allowed_telegram_teacher_ids: str = ""
     silent_telegram_user_ids: str = ""
     telegram_admin_id: int | None = None
