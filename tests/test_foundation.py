@@ -124,7 +124,10 @@ def test_student_cards_webapp_page_is_available():
     assert "Telegram.WebApp" in response.text
     assert "x-telegram-init-data" in response.text
     assert "/api/student/cards" in response.text
-    assert "Режим заучивания" in response.text
+    assert "Учить" in response.text
+    assert "Неизученное" in response.text
+    assert "Статистика" in response.text
+    assert "Все карточки" in response.text
     assert "Нажмите, чтобы перевернуть" in response.text
     assert "studyCards" in response.text
     assert 'card.status !== "known"' in response.text
@@ -132,16 +135,19 @@ def test_student_cards_webapp_page_is_available():
     assert "Не знаю" in response.text
     assert "Ещё учу" in response.text
     assert "Знаю" in response.text
-    assert "Учить" in response.text
     assert "data-list-progress" in response.text
     assert "min-height: 340px" in response.text
     assert "overflow-y: auto" in response.text
+    assert "Новые от преподавателя" in response.text
+    assert "Уже в изучении" in response.text
+    assert "Учить эти слова" in response.text
+    assert "renderUnlearned" in response.text
+    assert "renderStats" in response.text
     assert "Мой прогресс" in response.text
-    assert "Новые карточки" in response.text
-    assert "progressSummary" in response.text
-    assert "newCardsSummary" in response.text
     assert "knownPercent" in response.text
     assert "Осталось учить" in response.text
+    body_before_study = response.text.split("</style>", maxsplit=1)[1].split('<section id="study"', maxsplit=1)[0]
+    assert "summary-grid" not in body_before_study
 
     head_response = client.head("/student/cards")
     assert head_response.status_code == 200

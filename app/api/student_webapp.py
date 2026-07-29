@@ -17,19 +17,19 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
 .lead { margin: 0 0 16px; color: var(--tg-theme-hint-color, #6b7280); }
 .status { margin: 12px 0; color: var(--tg-theme-hint-color, #6b7280); }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
-.mode-button {
+.mode-button, .tab-active {
   background: var(--tg-theme-button-color, #2563eb);
   color: var(--tg-theme-button-text-color, #ffffff);
 }
 .secondary-button { background: #e5e7eb; color: #111827; }
 .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
-.summary-card {
+.summary-card, .section-card {
   padding: 14px;
   border-radius: 18px;
   background: var(--tg-theme-secondary-bg-color, #ffffff);
   border: 1px solid var(--tg-theme-section_separator_color, #e5e7eb);
 }
-.summary-card h2 { margin: 0 0 8px; font-size: 17px; }
+.summary-card h2, .section-card h2 { margin: 0 0 8px; font-size: 17px; }
 .summary-line { margin: 4px 0; color: var(--tg-theme-hint-color, #4b5563); }
 .summary-value { font-weight: 900; color: var(--tg-theme-text-color, #111827); }
 @media (max-width: 460px) { .summary-grid { grid-template-columns: 1fr; } }
@@ -98,19 +98,17 @@ if (tg) {
 }
 const initData = tg?.initData || "";
 const statusEl = document.getElementById("status");
-const progressSummaryEl = document.getElementById("progress-summary");
-const newCardsSummaryEl = document.getElementById("new-cards-summary");
-const progressSummary = progressSummaryEl;
-const newCardsSummary = newCardsSummaryEl;
 const studyEl = document.getElementById("study");
+const unlearnedEl = document.getElementById("unlearned");
+const statsEl = document.getElementById("stats");
 const listEl = document.getElementById("cards");
-const startStudyButton = document.getElementById("start-study");
-const showAllButton = document.getElementById("show-all");
+const navButtons = Array.from(document.querySelectorAll("button[data-section]"));
 
 let allCards = [];
 let studyCards = [];
 let currentIndex = 0;
 let isFlipped = false;
+let currentSection = "study";
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -147,15 +145,38 @@ function getStudyCards() {
   return allCards.filter((card) => card.status !== "known");
 }
 
+function cardsByStatus(status) {
+  return allCards.filter((card) => card.status === status);
+}
+
 function currentCard() {
   return studyCards[currentIndex];
 }
 
 function countByStatus(status) {
-  return allCards.filter((card) => card.status === status).length;
+  return cardsByStatus(status).length;
 }
 
-function renderSummaries() {
+function hideSections() {
+  studyEl.classList.add("hidden");
+  unlearnedEl.classList.add("hidden");
+  statsEl.classList.add("hidden");
+  listEl.classList.add("hidden");
+}
+
+function setActiveSection(section) {
+  currentSection = section;
+  navButtons.forEach((button) => {
+    const isActive = button.dataset.section === section;
+    button.className = isActive ? "tab-active" : "secondary-button";
+  });
+}
+
+function renderStats() {
+  hideSections();
+  setActiveSection("stats");
+  statsEl.classList.remove("hidden");
+
   const total = allCards.length;
   const known = countByStatus("known");
   const learning = countByStatus("learning");
@@ -163,26 +184,24 @@ function renderSummaries() {
   const leftToStudy = total - known;
   const knownPercent = total ? Math.round((known / total) * 100) : 0;
 
-  progressSummaryEl.innerHTML = `
-    <h2>Мой прогресс</h2>
-    <p class="summary-line">Всего: <span class="summary-value">${total}</span></p>
-    <p class="summary-line">Знаю: <span class="summary-value">${known}</span></p>
-    <p class="summary-line">Учу: <span class="summary-value">${learning}</span></p>
-    <p class="summary-line">Новые: <span class="summary-value">${newCount}</span></p>
-    <p class="summary-line">Осталось учить: <span class="summary-value">${leftToStudy}</span></p>
-    <p class="summary-line">Выучено: <span class="summary-value">${knownPercent}%</span></p>`;
-
-  const newCardsText = newCount
-    ? "Начните режим заучивания, чтобы разобрать новые слова."
-    : "Новых карточек сейчас нет.";
-  newCardsSummaryEl.innerHTML = `
-    <h2>Новые карточки</h2>
-    <p class="summary-line">Новых слов: <span class="summary-value">${newCount}</span></p>
-    <p class="summary-line">${newCardsText}</p>`;
+  statsEl.innerHTML = `
+    <section class="summary-grid" aria-label="Прогресс ученика">
+      <article class="summary-card">
+        <h2>Мой прогресс</h2>
+        <p class="summary-line">Всего: <span class="summary-value">${total}</span></p>
+        <p class="summary-line">Знаю: <span class="summary-value">${known}</span></p>
+        <p class="summary-line">Учу: <span class="summary-value">${learning}</span></p>
+        <p class="summary-line">Новые: <span class="summary-value">${newCount}</span></p>
+        <p class="summary-line">Осталось учить: <span class="summary-value">${leftToStudy}</span></p>
+        <p class="summary-line">Выучено: <span class="summary-value">${knownPercent}%</span></p>
+      </article>
+    </section>`;
+  setStatus("Статистика");
 }
 
 function renderStudyCard() {
-  listEl.classList.add("hidden");
+  hideSections();
+  setActiveSection("study");
   studyEl.classList.remove("hidden");
   studyCards = getStudyCards();
 
@@ -228,7 +247,7 @@ function flipCard() {
   renderStudyCard();
 }
 
-function listCardTemplate(card) {
+function listCardTemplate(card, listAction = true) {
   const action = card.status === "known"
     ? '<button class="learning" data-list-progress="learning">Учить</button>'
     : '<button class="known" data-list-progress="known">Знаю</button>';
@@ -238,19 +257,63 @@ function listCardTemplate(card) {
       <div>${escapeHtml(card.translation_ru)}</div>
       ${card.example_sentence ? `<div>${escapeHtml(card.example_sentence)}</div>` : ""}
       <span class="badge">${escapeHtml(card.status)}</span>
-      <div class="actions">${action}</div>
+      ${listAction ? `<div class="actions">${action}</div>` : ""}
     </article>`;
 }
 
+function renderCardGroup(title, cards) {
+  const content = cards.length
+    ? cards.map((card) => listCardTemplate(card, false)).join("")
+    : '<div class="empty">Пока пусто.</div>';
+  return `
+    <section class="section-card">
+      <h2>${title}</h2>
+      ${content}
+    </section>`;
+}
+
+function renderUnlearned() {
+  hideSections();
+  setActiveSection("unlearned");
+  unlearnedEl.classList.remove("hidden");
+
+  const newCards = cardsByStatus("new");
+  const learningCards = cardsByStatus("learning");
+  unlearnedEl.innerHTML = `
+    ${renderCardGroup("Новые от преподавателя", newCards)}
+    ${renderCardGroup("Уже в изучении", learningCards)}
+    <div class="actions">
+      <button class="mode-button" data-action="study-unlearned">Учить эти слова</button>
+    </div>`;
+  setStatus(`Неизученных карточек: ${newCards.length + learningCards.length}`);
+}
+
 function renderList() {
-  studyEl.classList.add("hidden");
+  hideSections();
+  setActiveSection("all");
   listEl.classList.remove("hidden");
   if (!allCards.length) {
     listEl.innerHTML = '<div class="empty">Опубликованных карточек пока нет.</div>';
   } else {
-    listEl.innerHTML = allCards.map(listCardTemplate).join("");
+    listEl.innerHTML = allCards.map((card) => listCardTemplate(card)).join("");
   }
   setStatus(`Карточек: ${allCards.length}`);
+}
+
+function renderCurrentSection() {
+  if (currentSection === "unlearned") {
+    renderUnlearned();
+    return;
+  }
+  if (currentSection === "stats") {
+    renderStats();
+    return;
+  }
+  if (currentSection === "all") {
+    renderList();
+    return;
+  }
+  renderStudyCard();
 }
 
 async function updateProgress(cardId, progress, after = "study") {
@@ -259,7 +322,6 @@ async function updateProgress(cardId, progress, after = "study") {
     body: JSON.stringify({ status: progress }),
   });
   allCards = allCards.map((card) => (card.id === Number(cardId) ? { ...card, status: result.status } : card));
-  renderSummaries();
   if (after === "list") {
     renderList();
     setStatus(progress === "known" ? "Отмечено как известно" : "Возвращено в режим заучивания");
@@ -284,7 +346,6 @@ async function loadCards() {
   try {
     const data = await api("/api/student/cards");
     allCards = data.cards;
-    renderSummaries();
     currentIndex = 0;
     isFlipped = false;
     renderStudyCard();
@@ -327,13 +388,22 @@ listEl.addEventListener("click", async (event) => {
   }
 });
 
-startStudyButton.addEventListener("click", () => {
+unlearnedEl.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action='study-unlearned']");
+  if (!button) return;
   currentIndex = 0;
   isFlipped = false;
   renderStudyCard();
 });
 
-showAllButton.addEventListener("click", renderList);
+navButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    currentIndex = 0;
+    isFlipped = false;
+    currentSection = button.dataset.section;
+    renderCurrentSection();
+  });
+});
 
 loadCards();
 """
@@ -352,17 +422,17 @@ def _page() -> str:
 <body>
   <main class="page">
     <h1>Мои карточки</h1>
-    <p class="lead">Повторяйте слова после уроков: сначала английское слово, потом переворот и ответ.</p>
-    <div class="toolbar">
-      <button id="start-study" class="mode-button">Режим заучивания</button>
-      <button id="show-all" class="secondary-button">Все карточки</button>
+    <p class="lead">Повторяйте слова после уроков: английское слово, переворот и ответ.</p>
+    <div class="toolbar" aria-label="Разделы карточек">
+      <button type="button" data-section="study" class="mode-button">Учить</button>
+      <button type="button" data-section="unlearned" class="secondary-button">Неизученное</button>
+      <button type="button" data-section="stats" class="secondary-button">Статистика</button>
+      <button type="button" data-section="all" class="secondary-button">Все карточки</button>
     </div>
     <div id="status" class="status">Загрузка...</div>
-    <section class="summary-grid" aria-label="Прогресс ученика">
-      <article id="progress-summary" class="summary-card">Мой прогресс</article>
-      <article id="new-cards-summary" class="summary-card">Новые карточки</article>
-    </section>
     <section id="study" class="study-area"></section>
+    <section id="unlearned" class="card-list hidden"></section>
+    <section id="stats" class="card-list hidden"></section>
     <section id="cards" class="card-list hidden"></section>
   </main>
   <script>{SCRIPT}</script>
