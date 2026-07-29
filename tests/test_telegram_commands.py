@@ -105,6 +105,40 @@ async def test_start_with_student_invite_links_student_telegram_account():
     ]
 
 
+async def test_start_for_linked_student_returns_cards_webapp_button():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    session.add(
+        Student(
+            teacher_user_id=teacher.id,
+            name="Анна",
+            telegram_user_id=222333444,
+            invite_status="used",
+        )
+    )
+    session.commit()
+
+    await service.handle_start(telegram_user_id=222333444, chat_id=222333444)
+
+    assert gateway.sent_messages == []
+    assert gateway.webapp_buttons == [
+        (
+            222333444,
+            (
+                "Готово ✅\n"
+                "Вы подключены как ученик: Анна.\n\n"
+                "Нажмите кнопку ниже, чтобы открыть карточки после уроков."
+            ),
+            "Открыть карточки",
+            "https://englishtutorai.ru/student/cards",
+        )
+    ]
+
+
 async def test_start_with_invalid_student_invite_returns_error_without_linking():
     session = make_session()
     gateway = FakeTelegramGateway()

@@ -85,6 +85,10 @@ class TelegramCommandService:
                 raw_token=start_payload.removeprefix("student_"),
             )
             return
+        linked_student = self.students.get_by_telegram_user_id(telegram_user_id)
+        if linked_student is not None:
+            await self._send_student_cards_button(chat_id, linked_student.name)
+            return
         if not self._is_allowed_teacher(telegram_user_id):
             await self._send_access_denied(chat_id, telegram_user_id)
             return
@@ -299,9 +303,12 @@ class TelegramCommandService:
         student.telegram_user_id = telegram_user_id
         student.invite_status = "used"
         self.session.commit()
+        await self._send_student_cards_button(chat_id, student.name)
+
+    async def _send_student_cards_button(self, chat_id: int, student_name: str) -> None:
         await self.gateway.send_webapp_button(
             chat_id,
-            STUDENT_CARDS_WEBAPP_TEXT.format(student_name=student.name),
+            STUDENT_CARDS_WEBAPP_TEXT.format(student_name=student_name),
             "Открыть карточки",
             "https://englishtutorai.ru/student/cards",
         )
