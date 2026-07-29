@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Awaitable, Callable
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from app.core.config import Settings, get_settings
@@ -10,6 +10,23 @@ from app.telegram.commands import TelegramCommandService
 from app.telegram.notifier import is_silent_telegram_chat
 
 logger = logging.getLogger(__name__)
+
+BOT_COMMANDS = (
+    BotCommand("start", "Начать работу / подключить ученика"),
+    BotCommand("connect_zoom", "Подключить Zoom"),
+    BotCommand("disconnect_zoom", "Отключить Zoom"),
+    BotCommand("status", "Проверить статус бота"),
+    BotCommand("cards", "Открыть карточки для проверки"),
+    BotCommand("add_student", "Добавить ученика"),
+    BotCommand("add_group", "Добавить группу"),
+    BotCommand("add_zoom_meeting", "Добавить Zoom-конференцию"),
+    BotCommand("last_report", "Показать последний отчёт"),
+    BotCommand("last_error", "Показать последнюю ошибку"),
+)
+
+
+async def register_bot_commands(application: Application) -> None:
+    await application.bot.set_my_commands(BOT_COMMANDS)
 
 
 class BotGateway:
@@ -47,7 +64,7 @@ def build_telegram_application(settings: Settings | None = None) -> Application 
     if token_secret is None:
         return None
     token = token_secret.get_secret_value()
-    application = Application.builder().token(token).build()
+    application = Application.builder().token(token).post_init(register_bot_commands).build()
     application.add_handler(CommandHandler("start", _start_handler(settings)))
     application.add_handler(CommandHandler("connect_zoom", _command_handler("handle_connect_zoom", settings)))
     application.add_handler(CommandHandler("cards", _command_handler("handle_cards", settings)))

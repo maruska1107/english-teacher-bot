@@ -1,17 +1,26 @@
 from app.core.config import Settings
-from app.telegram.application import BotGateway, is_telegram_bot_configured
+from app.telegram.application import BOT_COMMANDS, BotGateway, is_telegram_bot_configured, register_bot_commands
 
 
 class FakeBot:
     def __init__(self) -> None:
         self.messages: list[tuple[int, str]] = []
         self.webapp_messages: list[tuple[int, str, object]] = []
+        self.commands = None
 
     async def send_message(self, chat_id: int, text: str, reply_markup=None) -> None:
         if reply_markup is None:
             self.messages.append((chat_id, text))
         else:
             self.webapp_messages.append((chat_id, text, reply_markup))
+
+    async def set_my_commands(self, commands) -> None:
+        self.commands = commands
+
+
+class FakeApplication:
+    def __init__(self) -> None:
+        self.bot = FakeBot()
 
 
 class FakeContext:
@@ -32,6 +41,28 @@ def test_silent_telegram_user_ids_are_parsed_from_settings():
     settings = Settings(silent_telegram_user_ids="925045715, 123")
 
     assert settings.silent_user_ids == [925045715, 123]
+
+
+async def test_register_bot_commands_sets_telegram_command_menu():
+    application = FakeApplication()
+
+    await register_bot_commands(application)
+
+    assert application.bot.commands == BOT_COMMANDS
+    command_names = [command.command for command in BOT_COMMANDS]
+    assert command_names == [
+        "start",
+        "connect_zoom",
+        "disconnect_zoom",
+        "status",
+        "cards",
+        "add_student",
+        "add_group",
+        "add_zoom_meeting",
+        "last_report",
+        "last_error",
+    ]
+    assert all(command.description for command in BOT_COMMANDS)
 
 
 async def test_bot_gateway_sends_webapp_button_with_reply_markup():
