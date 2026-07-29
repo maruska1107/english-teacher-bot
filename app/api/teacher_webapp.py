@@ -123,7 +123,7 @@ function profileTemplate(profile) {
   const newCount = Number(profile.new_card_count || 0);
   const publishedCount = Number(profile.published_card_count || 0);
   return `
-    <button class="profile-card" data-profile-id="${profile.id}" aria-label="Открыть карточки">
+    <button type="button" class="profile-card" data-profile-id="${profile.id}" aria-label="Открыть карточки">
       <h2>${escapeHtml(profile.name)}</h2>
       <div class="profile-meta">
         <span class="badge badge-muted">${profileTypeLabel(profile)}</span>
@@ -200,7 +200,7 @@ function editableCardTemplate(card) {
       <label>Уровень</label>
       <input name="level" value="${escapeHtml(card.level)}">
       <div class="actions">
-        <button class="danger" data-action="delete-card">Удалить</button>
+        <button type="button" class="danger" data-action="delete-card">Удалить</button>
       </div>
     </article>`;
 }
@@ -233,14 +233,17 @@ function addWordPanel() {
       <label>Уровень</label>
       <input name="new_level" placeholder="B1">
       <div class="actions">
-        <button class="secondary" data-action="create-card">Добавить в список</button>
-        <button class="ghost" data-action="hide-add-form">Отмена</button>
+        <button type="button" class="secondary" data-action="create-card">Добавить в список</button>
+        <button type="button" class="ghost" data-action="hide-add-form">Отмена</button>
       </div>
     </section>`;
 }
 
 function addWordCollapsedButton() {
-  return '<div class="actions"><button class="secondary" data-action="show-add-form">+ Добавить слово</button></div>';
+  return `
+    <div class="actions">
+      <button type="button" class="secondary" data-action="show-add-form">+ Добавить слово</button>
+    </div>`;
 }
 
 function payloadFromCard(cardEl) {
@@ -273,12 +276,16 @@ function renderSelectedProfile() {
     : `<div class="empty">${emptyText}</div>`;
   const publishDisabled = draftCards.length ? "" : "disabled";
   const publishButton = isNewTab
-    ? `<button class="primary" data-action="publish-all" ${publishDisabled}>Опубликовать все карточки</button>`
+    ? `<button type="button" class="primary" data-action="publish-all" ${publishDisabled}>
+        Опубликовать все карточки
+      </button>`
     : "";
   const addWordHtml = isNewTab ? (addFormOpen ? addWordPanel() : addWordCollapsedButton()) : "";
+  const draftTabClass = isNewTab ? "tab-active" : "secondary";
+  const publishedTabClass = !isNewTab ? "tab-active" : "secondary";
 
   detailEl.innerHTML = `
-    <button class="ghost" data-action="back-to-profiles">← Назад к ученикам и группам</button>
+    <button type="button" class="ghost" data-action="back-to-profiles">← Назад к ученикам и группам</button>
     <section class="panel">
       <h2>${escapeHtml(selectedProfile.name)}</h2>
       <p class="lead">+N новых слов — количество карточек, которые ждут проверки.</p>
@@ -287,8 +294,8 @@ function renderSelectedProfile() {
         <span class="badge badge-muted">${publishedCards.length} опубликовано</span>
       </div>
       <div class="tabs">
-        <button class="${isNewTab ? "tab-active" : "secondary"}" data-action="tab-draft">Новые карточки</button>
-        <button class="${!isNewTab ? "tab-active" : "secondary"}" data-action="tab-published">Опубликованные</button>
+        <button type="button" class="${draftTabClass}" data-action="tab-draft">Новые карточки</button>
+        <button type="button" class="${publishedTabClass}" data-action="tab-published">Опубликованные</button>
       </div>
       <div id="profile-cards">${cardHtml}</div>
       ${addWordHtml}
@@ -359,12 +366,14 @@ async function createManualCard() {
 }
 
 profilesEl.addEventListener("click", async (event) => {
+  event.preventDefault();
   const profileButton = event.target.closest("[data-profile-id]");
   if (!profileButton) return;
   await openProfile(profileButton.dataset.profileId);
 });
 
 detailEl.addEventListener("click", async (event) => {
+  event.preventDefault();
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   try {
