@@ -1,6 +1,10 @@
 from fastapi import APIRouter
 
 from app.api.health import router as health_router
+from app.api.landing import router as landing_router
+from app.api.zoom import router as zoom_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)
+api_router.include_router(landing_router)
+api_router.include_router(zoom_router)

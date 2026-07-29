@@ -28,12 +28,15 @@ class Settings(BaseSettings):
 
     telegram_bot_token: SecretStr | None = None
     allowed_telegram_teacher_ids: str = ""
+    silent_telegram_user_ids: str = ""
     telegram_admin_id: int | None = None
 
     zoom_client_id: str | None = None
     zoom_client_secret: SecretStr | None = None
     zoom_redirect_uri: str | None = None
     zoom_webhook_secret_token: SecretStr | None = None
+    zoom_oauth_state_ttl_minutes: int = 15
+    auto_process_zoom_webhook_lessons: bool = True
 
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4.1-mini"
@@ -57,9 +60,17 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def allowed_teacher_ids(self) -> list[int]:
-        if not self.allowed_telegram_teacher_ids.strip():
+        return self._parse_int_list(self.allowed_telegram_teacher_ids)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def silent_user_ids(self) -> list[int]:
+        return self._parse_int_list(self.silent_telegram_user_ids)
+
+    def _parse_int_list(self, raw_value: str) -> list[int]:
+        if not raw_value.strip():
             return []
-        return [int(raw_id.strip()) for raw_id in self.allowed_telegram_teacher_ids.split(",") if raw_id.strip()]
+        return [int(raw_id.strip()) for raw_id in raw_value.split(",") if raw_id.strip()]
 
 
 @lru_cache(maxsize=1)

@@ -42,6 +42,57 @@ def test_health_endpoint_returns_static_status_without_database():
     assert response.json() == {"status": "ok", "service": "english-teacher-bot"}
 
 
+def test_zoom_landing_page_explains_oauth_flow():
+    app = create_app()
+    client = TestClient(app)
+
+    root_response = client.get("/")
+    assert root_response.status_code == 200
+    assert "ZOOM_verify_c5df37580d2446f59658896a833eec7a" in root_response.text
+
+    root_head_response = client.head("/")
+    assert root_head_response.status_code == 200
+
+    response = client.get("/zoom")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "English Tutor AI" in response.text
+    assert "Open Telegram Bot" in response.text
+    assert "https://t.me/EnglishTutorHelperAIBot" in response.text
+    assert "ZOOM_verify_c5df37580d2446f59658896a833eec7a" in response.text
+    assert "does not store video recordings" in response.text
+    assert "/connect_zoom" in response.text
+
+    head_response = client.head("/zoom")
+
+    assert head_response.status_code == 200
+    assert head_response.headers["content-type"].startswith("text/html")
+
+
+def test_marketplace_required_pages_are_available():
+    app = create_app()
+    client = TestClient(app)
+
+    expected_pages = {
+        "/privacy": ["Privacy Policy", "data subject rights", "Zoom OAuth", "video recordings"],
+        "/terms": ["Terms of Use", "English Tutor AI", "Zoom", "Telegram"],
+        "/support": ["Support", "EnglishTutorHelperAIBot", "Telegram"],
+        "/documentation": ["Zoom App Documentation", "/connect_zoom", "/disconnect_zoom", "remove"],
+    }
+
+    for path, expected_texts in expected_pages.items():
+        response = client.get(path)
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/html")
+        for expected_text in expected_texts:
+            assert expected_text in response.text
+
+        head_response = client.head(path)
+        assert head_response.status_code == 200
+
+
 def test_database_schema_supports_required_user_owned_entities():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)

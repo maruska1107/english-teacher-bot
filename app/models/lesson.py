@@ -14,6 +14,7 @@ class Lesson(Base):
     teacher_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     meeting_id: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     meeting_uuid: Mapped[str] = mapped_column(String(512), nullable=False)
+    transcript_download_url: Mapped[str | None] = mapped_column(Text)
     transcript: Mapped[str | None] = mapped_column(Text)
     processing_status: Mapped[str] = mapped_column(String(50), default="pending", index=True)
     processing_error: Mapped[str | None] = mapped_column(Text)
