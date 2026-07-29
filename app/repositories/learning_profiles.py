@@ -1,7 +1,7 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import LearningProfile, LearningProfileMember, Student
+from app.models import LearningProfile, LearningProfileMember, Student, VocabularyCard
 from app.repositories.students import StudentRepository
 
 
@@ -56,6 +56,18 @@ class LearningProfileRepository:
                 .order_by(LearningProfile.created_at, LearningProfile.id)
             )
         )
+
+    def list_with_card_counts(self, teacher_user_id: int) -> list[tuple[LearningProfile, int, int]]:
+        draft_count = func.count(VocabularyCard.id).filter(VocabularyCard.status == "draft")
+        published_count = func.count(VocabularyCard.id).filter(VocabularyCard.status == "published")
+        rows = self.session.execute(
+            select(LearningProfile, draft_count, published_count)
+            .outerjoin(VocabularyCard, VocabularyCard.learning_profile_id == LearningProfile.id)
+            .where(LearningProfile.teacher_user_id == teacher_user_id)
+            .group_by(LearningProfile.id)
+            .order_by(LearningProfile.created_at, LearningProfile.id)
+        ).all()
+        return [(profile, int(new_count or 0), int(published or 0)) for profile, new_count, published in rows]
 
     def get_by_teacher_and_name(self, teacher_user_id: int, name: str) -> LearningProfile | None:
         return self.session.scalar(

@@ -171,3 +171,70 @@ def test_teacher_cards_api_rejects_invalid_init_data_and_other_teacher_card():
     assert bad_auth.status_code == 401
     assert not_allowed.status_code == 403
     assert other_card.status_code == 403
+
+
+def test_teacher_profile_repository_counts_new_and_published_cards():
+    session = make_session()
+    teacher, profile, _, _ = seed_teacher_profile_and_cards(session)
+    other_profile = LearningProfile(
+        teacher_user_id=teacher.id,
+        name="Анна",
+        profile_type="individual",
+        card_publish_mode="manual_review",
+    )
+    session.add(other_profile)
+    session.flush()
+    session.add(
+        VocabularyCard(
+            teacher_user_id=teacher.id,
+            learning_profile_id=other_profile.id,
+            term="apple",
+            translation_ru="яблоко",
+            status="draft",
+        )
+    )
+    session.commit()
+
+    from app.repositories.learning_profiles import LearningProfileRepository
+
+    rows = LearningProfileRepository(session).list_with_card_counts(teacher.id)
+
+    assert [(row[0].name, row[1], row[2]) for row in rows] == [
+        ("Speaking B1", 1, 1),
+        ("Анна", 1, 0),
+    ]
+
+
+def test_vocabulary_repository_can_create_delete_and_batch_publish_cards():
+    session = make_session()
+    teacher, profile, draft_card, published_card = seed_teacher_profile_and_cards(session)
+
+    from app.repositories.vocabulary_cards import VocabularyCardRepository
+    from app.schemas.cards import VocabularyCardCreate
+
+    repository = VocabularyCardRepository(session)
+    manual_card = repository.create_manual_draft_card(
+        teacher_user_id=teacher.id,
+        payload=VocabularyCardCreate(
+            learning_profile_id=profile.id,
+            term="fluency",
+            translation_ru="беглость речи",
+            definition_en="speaking smoothly",
+            example_sentence="Her fluency improved.",
+            source_phrase=None,
+            level="B1",
+        ),
+    )
+    session.commit()
+
+    assert manual_card.status == "draft"
+    assert manual_card.learning_profile_id == profile.id
+
+    repository.delete_card(published_card)
+    published_count = repository.publish_draft_cards_for_profile(teacher.id, profile.id)
+    session.commit()
+
+    assert published_count == 2
+    assert session.get(VocabularyCard, published_card.id) is None
+    assert session.get(VocabularyCard, draft_card.id).status == "published"
+    assert session.get(VocabularyCard, manual_card.id).status == "published"

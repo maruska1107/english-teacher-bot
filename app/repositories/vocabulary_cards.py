@@ -4,7 +4,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import LearningProfileMember, StudentCardProgress, VocabularyCard
-from app.schemas.cards import VocabularyCardUpdate
+from app.schemas.cards import VocabularyCardCreate, VocabularyCardUpdate
+
+
+def _strip_optional(value: str | None) -> str | None:
+    return value.strip() if isinstance(value, str) else value
 
 
 class VocabularyCardRepository:
@@ -37,6 +41,23 @@ class VocabularyCardRepository:
         self.session.add_all(saved_cards)
         self.session.flush()
         return saved_cards
+
+    def create_manual_draft_card(self, teacher_user_id: int, payload: VocabularyCardCreate) -> VocabularyCard:
+        card = VocabularyCard(
+            teacher_user_id=teacher_user_id,
+            learning_profile_id=payload.learning_profile_id,
+            lesson_id=None,
+            term=payload.term.strip(),
+            translation_ru=payload.translation_ru.strip(),
+            definition_en=_strip_optional(payload.definition_en),
+            example_sentence=_strip_optional(payload.example_sentence),
+            source_phrase=_strip_optional(payload.source_phrase),
+            level=_strip_optional(payload.level),
+            status="draft",
+        )
+        self.session.add(card)
+        self.session.flush()
+        return card
 
     def list_for_teacher(
         self,
@@ -106,3 +127,18 @@ class VocabularyCardRepository:
             card.published_at = datetime.now(UTC)
         self.session.flush()
         return card
+
+    def delete_card(self, card: VocabularyCard) -> None:
+        self.session.delete(card)
+        self.session.flush()
+
+    def publish_draft_cards_for_profile(self, teacher_user_id: int, learning_profile_id: int) -> int:
+        cards = self.list_for_teacher(
+            teacher_user_id=teacher_user_id,
+            learning_profile_id=learning_profile_id,
+            status="draft",
+        )
+        for card in cards:
+            self.set_status(card, "published")
+        self.session.flush()
+        return len(cards)
