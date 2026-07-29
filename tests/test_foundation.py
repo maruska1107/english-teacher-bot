@@ -111,8 +111,14 @@ def test_student_cards_webapp_page_is_available():
     assert "Telegram.WebApp" in response.text
     assert "x-telegram-init-data" in response.text
     assert "/api/student/cards" in response.text
-    assert "learning" in response.text
-    assert "known" in response.text
+    assert "Режим заучивания" in response.text
+    assert "Нажмите, чтобы перевернуть" in response.text
+    assert "studyCards" in response.text
+    assert 'card.status !== "known"' in response.text
+    assert "flipCard" in response.text
+    assert "Не знаю" in response.text
+    assert "Ещё учу" in response.text
+    assert "Знаю" in response.text
 
     head_response = client.head("/student/cards")
     assert head_response.status_code == 200
