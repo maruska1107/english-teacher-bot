@@ -41,6 +41,7 @@ def build_telegram_application(settings: Settings | None = None) -> Application 
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", _start_handler(settings)))
     application.add_handler(CommandHandler("connect_zoom", _command_handler("handle_connect_zoom", settings)))
+    application.add_handler(CommandHandler("cards", _command_handler("handle_cards", settings)))
     application.add_handler(
         CommandHandler("add_student", _text_command_handler("handle_add_student", settings, "student_name"))
     )

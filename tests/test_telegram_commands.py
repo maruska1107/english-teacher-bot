@@ -322,6 +322,23 @@ async def test_add_group_returns_help_for_invalid_format():
     ]
 
 
+async def test_cards_command_returns_teacher_webapp_link():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.handle_cards(telegram_user_id=1001, chat_id=555)
+
+    assert gateway.sent_messages == [
+        (
+            555,
+            "Карточки для проверки:\n"
+            "https://englishtutorai.ru/teacher/cards\n\n"
+            "Откройте ссылку внутри Telegram, чтобы проверить draft-карточки.",
+        )
+    ]
+
+
 async def test_connect_zoom_returns_oauth_authorization_url():
     session = make_session()
     gateway = FakeTelegramGateway()

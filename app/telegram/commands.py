@@ -15,6 +15,7 @@ from app.telegram.invites import build_student_invite_link, generate_invite_toke
 from app.telegram.messages import (
     ACCESS_DENIED_TEMPLATE,
     ADMIN_ONLY_TEXT,
+    CARD_REVIEW_WEBAPP_TEXT,
     NO_ERRORS_TEXT,
     NO_REPORTS_TEXT,
     START_NOTICE_TEXT,
@@ -178,6 +179,13 @@ class TelegramCommandService:
             chat_id,
             "Группа создана ✅\n\n" f"{profile.name}\n\n" "Ссылки для учеников:\n" + "\n".join(invite_lines),
         )
+
+    async def handle_cards(self, telegram_user_id: int, chat_id: int) -> None:
+        if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
+            return
+        self.users.get_or_create_teacher(telegram_user_id)
+        self.session.commit()
+        await self.gateway.send_message(chat_id, CARD_REVIEW_WEBAPP_TEXT)
 
     async def handle_disconnect_zoom(self, telegram_user_id: int, chat_id: int) -> None:
         if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):

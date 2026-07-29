@@ -82,6 +82,24 @@ def test_zoom_landing_page_explains_oauth_flow():
     assert head_response.headers["content-type"].startswith("text/html")
 
 
+def test_teacher_cards_webapp_page_is_available():
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.get("/teacher/cards")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Telegram.WebApp" in response.text
+    assert "x-telegram-init-data" in response.text
+    assert "/api/teacher/cards?status=draft" in response.text
+    assert "publish" in response.text
+    assert "archive" in response.text
+
+    head_response = client.head("/teacher/cards")
+    assert head_response.status_code == 200
+
+
 def test_marketplace_required_pages_are_available():
     app = create_app()
     client = TestClient(app)

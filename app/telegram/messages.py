@@ -41,6 +41,11 @@ ZOOM_MEETING_SUBSCRIBED_TEMPLATE = (
     "к данным этой конференции. Обычно для этого нужен платный Zoom-тариф с "
     "облачной записью и автоматической расшифровкой."
 )
+CARD_REVIEW_WEBAPP_TEXT = (
+    "Карточки для проверки:\n"
+    "https://englishtutorai.ru/teacher/cards\n\n"
+    "Откройте ссылку внутри Telegram, чтобы проверить draft-карточки."
+)
 NO_REPORTS_TEXT = "Отчётов пока нет."
 NO_ERRORS_TEXT = "Ошибок обработки пока нет."
 ADMIN_ONLY_TEXT = "Эта команда доступна только администратору."
