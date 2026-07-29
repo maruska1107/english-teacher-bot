@@ -30,6 +30,8 @@ from app.zoom.oauth import ZoomOAuthService
 class TelegramGateway(Protocol):
     async def send_message(self, chat_id: int, text: str) -> None: ...
 
+    async def send_webapp_button(self, chat_id: int, text: str, button_text: str, webapp_url: str) -> None: ...
+
 
 def extract_zoom_meeting_id(meeting_link: str) -> str | None:
     value = meeting_link.strip()
@@ -185,7 +187,12 @@ class TelegramCommandService:
             return
         self.users.get_or_create_teacher(telegram_user_id)
         self.session.commit()
-        await self.gateway.send_message(chat_id, CARD_REVIEW_WEBAPP_TEXT)
+        await self.gateway.send_webapp_button(
+            chat_id,
+            CARD_REVIEW_WEBAPP_TEXT,
+            "Открыть WebApp",
+            "https://englishtutorai.ru/teacher/cards",
+        )
 
     async def handle_disconnect_zoom(self, telegram_user_id: int, chat_id: int) -> None:
         if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):

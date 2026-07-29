@@ -5,9 +5,13 @@ from app.telegram.application import BotGateway, is_telegram_bot_configured
 class FakeBot:
     def __init__(self) -> None:
         self.messages: list[tuple[int, str]] = []
+        self.webapp_messages: list[tuple[int, str, object]] = []
 
-    async def send_message(self, chat_id: int, text: str) -> None:
-        self.messages.append((chat_id, text))
+    async def send_message(self, chat_id: int, text: str, reply_markup=None) -> None:
+        if reply_markup is None:
+            self.messages.append((chat_id, text))
+        else:
+            self.webapp_messages.append((chat_id, text, reply_markup))
 
 
 class FakeContext:
@@ -30,12 +34,28 @@ def test_silent_telegram_user_ids_are_parsed_from_settings():
     assert settings.silent_user_ids == [925045715, 123]
 
 
-async def test_bot_gateway_suppresses_messages_to_silent_user_ids():
+async def test_bot_gateway_sends_webapp_button_with_reply_markup():
+    settings = Settings()
+    context = FakeContext()
+    gateway = BotGateway(context, settings)
+
+    await gateway.send_webapp_button(956230172, "Карточки", "Открыть WebApp", "https://englishtutorai.ru/teacher/cards")
+
+    assert len(context.bot.webapp_messages) == 1
+    chat_id, text, reply_markup = context.bot.webapp_messages[0]
+    assert chat_id == 956230172
+    assert text == "Карточки"
+    button = reply_markup.inline_keyboard[0][0]
+    assert button.text == "Открыть WebApp"
+    assert button.web_app.url == "https://englishtutorai.ru/teacher/cards"
+
+
+async def test_bot_gateway_suppresses_webapp_button_to_silent_user_ids():
     settings = Settings(silent_telegram_user_ids="925045715")
     context = FakeContext()
     gateway = BotGateway(context, settings)
 
-    await gateway.send_message(925045715, "не отправлять")
-    await gateway.send_message(956230172, "отправить")
+    await gateway.send_webapp_button(925045715, "не отправлять", "Открыть", "https://englishtutorai.ru/teacher/cards")
 
-    assert context.bot.messages == [(956230172, "отправить")]
+    assert context.bot.messages == []
+    assert context.bot.webapp_messages == []

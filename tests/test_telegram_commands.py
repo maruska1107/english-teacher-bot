@@ -14,9 +14,13 @@ from app.telegram.messages import START_NOTICE_TEXT
 class FakeTelegramGateway:
     def __init__(self) -> None:
         self.sent_messages: list[tuple[int, str]] = []
+        self.webapp_buttons: list[tuple[int, str, str, str]] = []
 
     async def send_message(self, chat_id: int, text: str) -> None:
         self.sent_messages.append((chat_id, text))
+
+    async def send_webapp_button(self, chat_id: int, text: str, button_text: str, webapp_url: str) -> None:
+        self.webapp_buttons.append((chat_id, text, button_text, webapp_url))
 
 
 def make_session() -> Session:
@@ -322,19 +326,22 @@ async def test_add_group_returns_help_for_invalid_format():
     ]
 
 
-async def test_cards_command_returns_teacher_webapp_link():
+async def test_cards_command_returns_teacher_webapp_button():
     session = make_session()
     gateway = FakeTelegramGateway()
     service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
 
     await service.handle_cards(telegram_user_id=1001, chat_id=555)
 
-    assert gateway.sent_messages == [
+    assert gateway.sent_messages == []
+    assert gateway.webapp_buttons == [
         (
             555,
             "Карточки для проверки:\n"
             "https://englishtutorai.ru/teacher/cards\n\n"
             "Откройте ссылку внутри Telegram, чтобы проверить draft-карточки.",
+            "Открыть WebApp",
+            "https://englishtutorai.ru/teacher/cards",
         )
     ]
 

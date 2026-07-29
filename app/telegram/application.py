@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Awaitable, Callable
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from app.core.config import Settings, get_settings
@@ -22,6 +22,15 @@ class BotGateway:
             logger.info("Suppressing Telegram bot response for silent user_id=%s", chat_id)
             return
         await self.context.bot.send_message(chat_id=chat_id, text=text)
+
+    async def send_webapp_button(self, chat_id: int, text: str, button_text: str, webapp_url: str) -> None:
+        if is_silent_telegram_chat(self.settings, chat_id):
+            logger.info("Suppressing Telegram bot WebApp button for silent user_id=%s", chat_id)
+            return
+        reply_markup = InlineKeyboardMarkup.from_button(
+            InlineKeyboardButton(text=button_text, web_app=WebAppInfo(url=webapp_url))
+        )
+        await self.context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
 
 
 def is_telegram_bot_configured(settings: Settings) -> bool:
