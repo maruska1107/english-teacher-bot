@@ -238,3 +238,105 @@ def test_vocabulary_repository_can_create_delete_and_batch_publish_cards():
     assert session.get(VocabularyCard, published_card.id) is None
     assert session.get(VocabularyCard, draft_card.id).status == "published"
     assert session.get(VocabularyCard, manual_card.id).status == "published"
+
+
+def test_teacher_can_list_card_profiles_with_counts():
+    session = make_session()
+    _, profile, _, _ = seed_teacher_profile_and_cards(session)
+    client = make_client(session)
+
+    response = client.get(
+        "/api/teacher/card-profiles",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "profiles": [
+            {
+                "id": profile.id,
+                "name": "Speaking B1",
+                "profile_type": "group",
+                "new_card_count": 1,
+                "published_card_count": 1,
+            }
+        ]
+    }
+
+
+def test_teacher_can_create_delete_and_batch_publish_cards_via_api():
+    session = make_session()
+    _, profile, draft_card, published_card = seed_teacher_profile_and_cards(session)
+    client = make_client(session)
+    headers = {"x-telegram-init-data": signed_init_data(1001)}
+
+    create_response = client.post(
+        "/api/teacher/cards",
+        headers=headers,
+        json={
+            "learning_profile_id": profile.id,
+            "term": "fluency",
+            "translation_ru": "беглость речи",
+            "definition_en": "speaking smoothly",
+            "example_sentence": "Her fluency improved.",
+            "source_phrase": None,
+            "level": "B1",
+        },
+    )
+    delete_response = client.delete(f"/api/teacher/cards/{published_card.id}", headers=headers)
+    publish_response = client.post(
+        "/api/teacher/cards/publish-batch",
+        headers=headers,
+        json={"learning_profile_id": profile.id},
+    )
+
+    assert create_response.status_code == 200
+    assert create_response.json()["status"] == "draft"
+    assert delete_response.status_code == 204
+    assert session.get(VocabularyCard, published_card.id) is None
+    assert publish_response.status_code == 200
+    assert publish_response.json() == {"published_count": 2}
+    assert session.get(VocabularyCard, draft_card.id).status == "published"
+    assert session.get(VocabularyCard, create_response.json()["id"]).status == "published"
+
+
+def test_teacher_cannot_create_card_for_other_teacher_profile_or_batch_publish_it():
+    session = make_session()
+    _, profile, _, _ = seed_teacher_profile_and_cards(session)
+    other_teacher = User(telegram_user_id=2002, role="teacher", is_active=True)
+    session.add(other_teacher)
+    session.flush()
+    other_profile = LearningProfile(
+        teacher_user_id=other_teacher.id,
+        name="Other",
+        profile_type="individual",
+        card_publish_mode="manual_review",
+    )
+    session.add(other_profile)
+    session.commit()
+    client = make_client(session)
+    headers = {"x-telegram-init-data": signed_init_data(1001)}
+
+    create_other = client.post(
+        "/api/teacher/cards",
+        headers=headers,
+        json={
+            "learning_profile_id": other_profile.id,
+            "term": "bad",
+            "translation_ru": "плохо",
+        },
+    )
+    publish_other = client.post(
+        "/api/teacher/cards/publish-batch",
+        headers=headers,
+        json={"learning_profile_id": other_profile.id},
+    )
+    publish_own = client.post(
+        "/api/teacher/cards/publish-batch",
+        headers=headers,
+        json={"learning_profile_id": profile.id},
+    )
+
+    assert create_other.status_code == 404
+    assert publish_other.status_code == 404
+    assert publish_own.status_code == 200

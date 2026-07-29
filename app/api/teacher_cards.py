@@ -1,17 +1,28 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
-from app.models import User, VocabularyCard
+from app.models import LearningProfile, User, VocabularyCard
+from app.repositories.learning_profiles import LearningProfileRepository
 from app.repositories.users import UserRepository
 from app.repositories.vocabulary_cards import VocabularyCardRepository
-from app.schemas.cards import VocabularyCardListResponse, VocabularyCardRead, VocabularyCardUpdate
+from app.schemas.cards import (
+    BatchPublishCardsRequest,
+    BatchPublishCardsResponse,
+    TeacherCardProfileListResponse,
+    TeacherCardProfileRead,
+    VocabularyCardCreate,
+    VocabularyCardListResponse,
+    VocabularyCardRead,
+    VocabularyCardUpdate,
+)
 from app.telegram.webapp_auth import TelegramWebAppAuthError, verify_telegram_webapp_init_data
 
 router = APIRouter(prefix="/api/teacher/cards", tags=["teacher-cards"])
+profiles_router = APIRouter(prefix="/api/teacher/card-profiles", tags=["teacher-card-profiles"])
 
 
 def card_to_response(card: VocabularyCard) -> VocabularyCardRead:
@@ -49,6 +60,35 @@ def get_current_teacher(
     return teacher
 
 
+def profile_to_response(profile: LearningProfile, new_count: int, published_count: int) -> TeacherCardProfileRead:
+    return TeacherCardProfileRead(
+        id=profile.id,
+        name=profile.name,
+        profile_type=profile.profile_type,
+        new_card_count=new_count,
+        published_card_count=published_count,
+    )
+
+
+def get_teacher_profile_or_404(session: Session, teacher: User, profile_id: int) -> LearningProfile:
+    profile = session.get(LearningProfile, profile_id)
+    if profile is None or profile.teacher_user_id != teacher.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    return profile
+
+
+@profiles_router.get("", response_model=TeacherCardProfileListResponse)
+def list_card_profiles(
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+) -> TeacherCardProfileListResponse:
+    rows = LearningProfileRepository(session).list_with_card_counts(teacher.id)
+    profiles = [
+        profile_to_response(profile, new_count, published_count) for profile, new_count, published_count in rows
+    ]
+    return TeacherCardProfileListResponse(profiles=profiles)
+
+
 @router.get("", response_model=VocabularyCardListResponse)
 def list_cards(
     session: Annotated[Session, Depends(get_db_session)],
@@ -62,6 +102,18 @@ def list_cards(
         status=status_filter,
     )
     return VocabularyCardListResponse(cards=[card_to_response(card) for card in cards])
+
+
+@router.post("", response_model=VocabularyCardRead)
+def create_card(
+    payload: VocabularyCardCreate,
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+) -> VocabularyCardRead:
+    get_teacher_profile_or_404(session, teacher, payload.learning_profile_id)
+    card = VocabularyCardRepository(session).create_manual_draft_card(teacher.id, payload)
+    session.commit()
+    return card_to_response(card)
 
 
 @router.patch("/{card_id}", response_model=VocabularyCardRead)
@@ -78,6 +130,36 @@ def update_card(
     card = repository.update_card(card, payload)
     session.commit()
     return card_to_response(card)
+
+
+@router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_card(
+    card_id: int,
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+) -> Response:
+    repository = VocabularyCardRepository(session)
+    card = repository.get_for_teacher(teacher.id, card_id)
+    if card is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+    repository.delete_card(card)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/publish-batch", response_model=BatchPublishCardsResponse)
+def publish_batch(
+    payload: BatchPublishCardsRequest,
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+) -> BatchPublishCardsResponse:
+    get_teacher_profile_or_404(session, teacher, payload.learning_profile_id)
+    published_count = VocabularyCardRepository(session).publish_draft_cards_for_profile(
+        teacher_user_id=teacher.id,
+        learning_profile_id=payload.learning_profile_id,
+    )
+    session.commit()
+    return BatchPublishCardsResponse(published_count=published_count)
 
 
 @router.post("/{card_id}/publish", response_model=VocabularyCardRead)
