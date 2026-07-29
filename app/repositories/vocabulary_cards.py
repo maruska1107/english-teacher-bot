@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import VocabularyCard
+from app.models import LearningProfileMember, StudentCardProgress, VocabularyCard
 from app.schemas.cards import VocabularyCardUpdate
 
 
@@ -51,6 +51,39 @@ class VocabularyCardRepository:
             query = query.where(VocabularyCard.status == status)
         query = query.order_by(VocabularyCard.created_at.desc(), VocabularyCard.id.desc())
         return list(self.session.scalars(query))
+
+    def list_published_for_student(self, student_id: int) -> list[tuple[VocabularyCard, str]]:
+        rows = self.session.execute(
+            select(VocabularyCard, StudentCardProgress.status)
+            .join(
+                LearningProfileMember,
+                LearningProfileMember.learning_profile_id == VocabularyCard.learning_profile_id,
+            )
+            .outerjoin(
+                StudentCardProgress,
+                (StudentCardProgress.card_id == VocabularyCard.id) & (StudentCardProgress.student_id == student_id),
+            )
+            .where(
+                LearningProfileMember.student_id == student_id,
+                VocabularyCard.status == "published",
+            )
+            .order_by(VocabularyCard.created_at.desc(), VocabularyCard.id.desc())
+        ).all()
+        return [(card, progress_status or "new") for card, progress_status in rows]
+
+    def get_published_for_student(self, student_id: int, card_id: int) -> VocabularyCard | None:
+        return self.session.scalar(
+            select(VocabularyCard)
+            .join(
+                LearningProfileMember,
+                LearningProfileMember.learning_profile_id == VocabularyCard.learning_profile_id,
+            )
+            .where(
+                LearningProfileMember.student_id == student_id,
+                VocabularyCard.id == card_id,
+                VocabularyCard.status == "published",
+            )
+        )
 
     def get_for_teacher(self, teacher_user_id: int, card_id: int) -> VocabularyCard | None:
         return self.session.scalar(

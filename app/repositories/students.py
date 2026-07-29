@@ -33,3 +33,6 @@ class StudentRepository:
                 Student.invite_status == "active",
             )
         )
+
+    def get_by_telegram_user_id(self, telegram_user_id: int) -> Student | None:
+        return self.session.scalar(select(Student).where(Student.telegram_user_id == telegram_user_id))
