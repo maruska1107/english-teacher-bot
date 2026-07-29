@@ -7,15 +7,20 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal
 from app.telegram.commands import TelegramCommandService
+from app.telegram.notifier import is_silent_telegram_chat
 
 logger = logging.getLogger(__name__)
 
 
 class BotGateway:
-    def __init__(self, context: ContextTypes.DEFAULT_TYPE) -> None:
+    def __init__(self, context: ContextTypes.DEFAULT_TYPE, settings: Settings) -> None:
         self.context = context
+        self.settings = settings
 
     async def send_message(self, chat_id: int, text: str) -> None:
+        if is_silent_telegram_chat(self.settings, chat_id):
+            logger.info("Suppressing Telegram bot response for silent user_id=%s", chat_id)
+            return
         await self.context.bot.send_message(chat_id=chat_id, text=text)
 
 
@@ -61,7 +66,7 @@ def _command_handler(
         with SessionLocal() as session:
             service = TelegramCommandService(
                 session=session,
-                gateway=BotGateway(context),
+                gateway=BotGateway(context, settings),
                 settings=settings,
             )
             method = getattr(service, method_name)
@@ -83,7 +88,7 @@ def _text_command_handler(
         with SessionLocal() as session:
             service = TelegramCommandService(
                 session=session,
-                gateway=BotGateway(context),
+                gateway=BotGateway(context, settings),
                 settings=settings,
             )
             method = getattr(service, method_name)
