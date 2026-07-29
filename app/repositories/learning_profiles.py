@@ -56,3 +56,11 @@ class LearningProfileRepository:
                 .order_by(LearningProfile.created_at, LearningProfile.id)
             )
         )
+
+    def get_by_teacher_and_name(self, teacher_user_id: int, name: str) -> LearningProfile | None:
+        return self.session.scalar(
+            select(LearningProfile).where(
+                LearningProfile.teacher_user_id == teacher_user_id,
+                LearningProfile.name == name.strip(),
+            )
+        )

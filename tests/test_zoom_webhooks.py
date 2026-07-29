@@ -14,7 +14,7 @@ from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
-from app.models import Lesson, ProcessedWebhookEvent, User, ZoomMeetingSubscription, ZoomToken
+from app.models import LearningProfile, Lesson, ProcessedWebhookEvent, User, ZoomMeetingSubscription, ZoomToken
 
 
 def make_session() -> Session:
@@ -107,9 +107,18 @@ def test_recording_completed_is_idempotent_and_creates_lesson_for_zoom_user():
             expires_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
     )
+    profile = LearningProfile(
+        teacher_user_id=teacher.id,
+        name="Speaking B1",
+        profile_type="group",
+        card_publish_mode="manual_review",
+    )
+    session.add(profile)
+    session.flush()
     session.add(
         ZoomMeetingSubscription(
             user_id=teacher.id,
+            learning_profile_id=profile.id,
             meeting_id="987654321",
             meeting_url="https://us06web.zoom.us/j/987654321",
             is_active=True,
@@ -148,6 +157,7 @@ def test_recording_completed_is_idempotent_and_creates_lesson_for_zoom_user():
     assert second_response.json() == {"status": "already_processed"}
     lesson = session.query(Lesson).one()
     assert lesson.teacher_user_id == teacher.id
+    assert lesson.learning_profile_id == profile.id
     assert lesson.meeting_id == "987654321"
     assert lesson.meeting_uuid == "meeting-uuid-1"
     assert lesson.transcript_download_url == "https://zoom.example/transcript.vtt"

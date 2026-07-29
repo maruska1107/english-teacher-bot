@@ -107,22 +107,31 @@ class TelegramCommandService:
     async def handle_add_zoom_meeting(self, telegram_user_id: int, chat_id: int, meeting_link: str = "") -> None:
         if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
             return
-        meeting_id = extract_zoom_meeting_id(meeting_link)
+        meeting_url, profile_name = self._parse_meeting_profile_spec(meeting_link)
+        meeting_id = extract_zoom_meeting_id(meeting_url)
         if meeting_id is None:
             await self.gateway.send_message(chat_id, ZOOM_MEETING_LINK_HELP_TEXT)
             return
         user = self.users.get_by_telegram_id(telegram_user_id)
         assert user is not None
+        learning_profile_id = None
+        if profile_name is not None:
+            profile = self.learning_profiles.get_by_teacher_and_name(user.id, profile_name)
+            if profile is None:
+                await self.gateway.send_message(chat_id, f"Учебный профиль не найден: {profile_name}")
+                return
+            learning_profile_id = profile.id
         self.zoom_meeting_subscriptions.upsert_for_user(
             user_id=user.id,
             meeting_id=meeting_id,
-            meeting_url=meeting_link.strip(),
+            meeting_url=meeting_url.strip(),
+            learning_profile_id=learning_profile_id,
         )
         self.session.commit()
-        await self.gateway.send_message(
-            chat_id,
-            ZOOM_MEETING_SUBSCRIBED_TEMPLATE.format(meeting_id=meeting_id),
-        )
+        message = ZOOM_MEETING_SUBSCRIBED_TEMPLATE.format(meeting_id=meeting_id)
+        if profile_name is not None:
+            message = f"{message}\n\nПрофиль: {profile_name}"
+        await self.gateway.send_message(chat_id, message)
 
     async def handle_add_student(self, telegram_user_id: int, chat_id: int, student_name: str = "") -> None:
         if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
@@ -255,6 +264,13 @@ class TelegramCommandService:
                 member_names.append(name)
                 seen_names.add(name)
         return group_name.strip() or None, member_names
+
+    def _parse_meeting_profile_spec(self, meeting_link: str) -> tuple[str, str | None]:
+        if "|" not in meeting_link:
+            return meeting_link.strip(), None
+        meeting_url, profile_name = meeting_link.split("|", 1)
+        normalized_profile_name = profile_name.strip()
+        return meeting_url.strip(), normalized_profile_name or None
 
     async def _handle_student_invite_start(self, telegram_user_id: int, chat_id: int, raw_token: str) -> None:
         student = self.students.get_by_invite_token_hash(hash_invite_token(raw_token))

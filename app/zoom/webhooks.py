@@ -45,7 +45,11 @@ class ZoomWebhookService:
             return RecordingCompletedResult(status="ignored_no_teacher")
 
         meeting_id = str(meeting.get("id") or "")
-        if not self.zoom_meeting_subscriptions.active_exists(user_id=teacher_user_id, meeting_id=meeting_id):
+        subscription = self.zoom_meeting_subscriptions.active_for_user_and_meeting(
+            user_id=teacher_user_id,
+            meeting_id=meeting_id,
+        )
+        if subscription is None:
             self.events.create(
                 event_id=event_id,
                 event_type="recording.completed",
@@ -56,6 +60,7 @@ class ZoomWebhookService:
 
         lesson = Lesson(
             teacher_user_id=teacher_user_id,
+            learning_profile_id=subscription.learning_profile_id,
             meeting_id=meeting_id,
             meeting_uuid=str(meeting.get("uuid") or ""),
             transcript_download_url=self._transcript_download_url(meeting),

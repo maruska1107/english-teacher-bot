@@ -377,6 +377,7 @@ async def test_add_zoom_meeting_subscribes_teacher_to_meeting_link():
     subscription = session.query(ZoomMeetingSubscription).filter_by(user_id=user.id).one()
     assert subscription.meeting_id == "987654321"
     assert subscription.meeting_url == "https://us06web.zoom.us/j/987654321?pwd=secret"
+    assert subscription.learning_profile_id is None
     assert subscription.is_active is True
     assert gateway.sent_messages == [
         (
@@ -389,6 +390,46 @@ async def test_add_zoom_meeting_subscribes_teacher_to_meeting_link():
         )
     ]
     assert "хост" not in gateway.sent_messages[0][1].lower()
+
+
+async def test_add_zoom_meeting_can_link_to_learning_profile_by_name():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+    await service.handle_add_group(
+        telegram_user_id=1001,
+        chat_id=555,
+        group_spec="Speaking B1: Мария, Катя",
+    )
+    gateway.sent_messages.clear()
+
+    await service.handle_add_zoom_meeting(
+        telegram_user_id=1001,
+        chat_id=555,
+        meeting_link="https://us06web.zoom.us/j/777888999 | Speaking B1",
+    )
+
+    user = session.query(User).filter_by(telegram_user_id=1001).one()
+    profile = session.query(LearningProfile).filter_by(teacher_user_id=user.id, name="Speaking B1").one()
+    subscription = session.query(ZoomMeetingSubscription).filter_by(user_id=user.id, meeting_id="777888999").one()
+    assert subscription.learning_profile_id == profile.id
+    assert subscription.meeting_url == "https://us06web.zoom.us/j/777888999"
+    assert "Профиль: Speaking B1" in gateway.sent_messages[0][1]
+
+
+async def test_add_zoom_meeting_returns_help_for_unknown_learning_profile():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.handle_add_zoom_meeting(
+        telegram_user_id=1001,
+        chat_id=555,
+        meeting_link="https://us06web.zoom.us/j/777888999 | Missing Profile",
+    )
+
+    assert session.query(ZoomMeetingSubscription).count() == 0
+    assert gateway.sent_messages == [(555, "Учебный профиль не найден: Missing Profile")]
 
 
 async def test_add_zoom_meeting_rejects_invalid_link():
