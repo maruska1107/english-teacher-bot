@@ -100,6 +100,24 @@ def test_teacher_cards_webapp_page_is_available():
     assert head_response.status_code == 200
 
 
+def test_student_cards_webapp_page_is_available():
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.get("/student/cards")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Telegram.WebApp" in response.text
+    assert "x-telegram-init-data" in response.text
+    assert "/api/student/cards" in response.text
+    assert "learning" in response.text
+    assert "known" in response.text
+
+    head_response = client.head("/student/cards")
+    assert head_response.status_code == 200
+
+
 def test_marketplace_required_pages_are_available():
     app = create_app()
     client = TestClient(app)

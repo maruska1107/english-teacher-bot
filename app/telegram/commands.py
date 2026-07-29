@@ -19,6 +19,7 @@ from app.telegram.messages import (
     NO_ERRORS_TEXT,
     NO_REPORTS_TEXT,
     START_NOTICE_TEXT,
+    STUDENT_CARDS_WEBAPP_TEXT,
     ZOOM_CONNECT_NOT_READY_TEXT,
     ZOOM_DISCONNECTED_TEXT,
     ZOOM_MEETING_LINK_HELP_TEXT,
@@ -298,9 +299,11 @@ class TelegramCommandService:
         student.telegram_user_id = telegram_user_id
         student.invite_status = "used"
         self.session.commit()
-        await self.gateway.send_message(
+        await self.gateway.send_webapp_button(
             chat_id,
-            f"Готово ✅\nВы подключены как ученик: {student.name}.\n\nСкоро здесь появятся карточки после уроков.",
+            STUDENT_CARDS_WEBAPP_TEXT.format(student_name=student.name),
+            "Открыть карточки",
+            "https://englishtutorai.ru/student/cards",
         )
 
     def _is_allowed_teacher(self, telegram_user_id: int) -> bool:

@@ -46,6 +46,11 @@ CARD_REVIEW_WEBAPP_TEXT = (
     "https://englishtutorai.ru/teacher/cards\n\n"
     "Откройте ссылку внутри Telegram, чтобы проверить draft-карточки."
 )
+STUDENT_CARDS_WEBAPP_TEXT = (
+    "Готово ✅\n"
+    "Вы подключены как ученик: {student_name}.\n\n"
+    "Нажмите кнопку ниже, чтобы открыть карточки после уроков."
+)
 NO_REPORTS_TEXT = "Отчётов пока нет."
 NO_ERRORS_TEXT = "Ошибок обработки пока нет."
 ADMIN_ONLY_TEXT = "Эта команда доступна только администратору."

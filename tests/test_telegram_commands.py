@@ -90,10 +90,17 @@ async def test_start_with_student_invite_links_student_telegram_account():
     session.refresh(student)
     assert student.telegram_user_id == 222333444
     assert student.invite_status == "used"
-    assert gateway.sent_messages == [
+    assert gateway.sent_messages == []
+    assert gateway.webapp_buttons == [
         (
             222333444,
-            "Готово ✅\n" "Вы подключены как ученик: Анна.\n\n" "Скоро здесь появятся карточки после уроков.",
+            (
+                "Готово ✅\n"
+                "Вы подключены как ученик: Анна.\n\n"
+                "Нажмите кнопку ниже, чтобы открыть карточки после уроков."
+            ),
+            "Открыть карточки",
+            "https://englishtutorai.ru/student/cards",
         )
     ]
 
