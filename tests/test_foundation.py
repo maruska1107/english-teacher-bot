@@ -7,7 +7,19 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.db.base import Base
 from app.main import create_app
-from app.models import Lesson, LessonAnalysis, ProcessedWebhookEvent, User, ZoomToken
+from app.models import (
+    LearningProfile,
+    LearningProfileMember,
+    Lesson,
+    LessonAnalysis,
+    ProcessedWebhookEvent,
+    Student,
+    StudentCardProgress,
+    User,
+    VocabularyCard,
+    ZoomMeetingSubscription,
+    ZoomToken,
+)
 
 
 def test_settings_build_database_url_from_parts_when_not_explicit():
@@ -91,6 +103,85 @@ def test_marketplace_required_pages_are_available():
 
         head_response = client.head(path)
         assert head_response.status_code == 200
+
+
+def test_database_schema_supports_learning_profiles_and_cards():
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        teacher = User(telegram_user_id=956230172, role="teacher", is_active=True)
+        session.add(teacher)
+        session.flush()
+
+        student = Student(
+            teacher_user_id=teacher.id,
+            name="Анна",
+            telegram_user_id=111222333,
+            invite_token_hash="hashed-token",
+            invite_status="active",
+        )
+        profile = LearningProfile(
+            teacher_user_id=teacher.id,
+            name="Анна",
+            profile_type="individual",
+            card_publish_mode="manual_review",
+        )
+        session.add_all([student, profile])
+        session.flush()
+
+        membership = LearningProfileMember(
+            learning_profile_id=profile.id,
+            student_id=student.id,
+        )
+        subscription = ZoomMeetingSubscription(
+            user_id=teacher.id,
+            learning_profile_id=profile.id,
+            meeting_id="987654321",
+            meeting_url="https://example.zoom.us/j/987654321",
+            is_active=True,
+        )
+        lesson = Lesson(
+            teacher_user_id=teacher.id,
+            learning_profile_id=profile.id,
+            meeting_id="987654321",
+            meeting_uuid="meeting-uuid-learning-profile",
+            processing_status="completed",
+        )
+        session.add_all([membership, subscription, lesson])
+        session.flush()
+
+        card = VocabularyCard(
+            teacher_user_id=teacher.id,
+            learning_profile_id=profile.id,
+            lesson_id=lesson.id,
+            term="make progress",
+            translation_ru="делать успехи",
+            definition_en="to improve",
+            example_sentence="She made progress with pronunciation.",
+            source_phrase="make progress",
+            level="A2",
+            status="draft",
+        )
+        session.add(card)
+        session.flush()
+
+        progress = StudentCardProgress(
+            student_id=student.id,
+            card_id=card.id,
+            status="new",
+            review_count=0,
+        )
+        session.add(progress)
+        session.commit()
+
+        saved_profile = session.get(LearningProfile, profile.id)
+        assert saved_profile.teacher.telegram_user_id == 956230172
+        assert saved_profile.memberships[0].student.name == "Анна"
+        assert saved_profile.zoom_meeting_subscriptions[0].meeting_id == "987654321"
+        assert saved_profile.lessons[0].meeting_uuid == "meeting-uuid-learning-profile"
+        assert saved_profile.vocabulary_cards[0].term == "make progress"
+        assert saved_profile.vocabulary_cards[0].student_progress[0].student.name == "Анна"
 
 
 def test_database_schema_supports_required_user_owned_entities():

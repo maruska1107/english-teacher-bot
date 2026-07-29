@@ -18,6 +18,9 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
+    students = relationship("Student", back_populates="teacher", cascade="all, delete-orphan")
+    learning_profiles = relationship("LearningProfile", back_populates="teacher", cascade="all, delete-orphan")
+    vocabulary_cards = relationship("VocabularyCard", back_populates="teacher", cascade="all, delete-orphan")
     zoom_tokens = relationship("ZoomToken", back_populates="user", cascade="all, delete-orphan")
     zoom_meeting_subscriptions = relationship(
         "ZoomMeetingSubscription", back_populates="user", cascade="all, delete-orphan"

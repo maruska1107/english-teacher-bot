@@ -12,6 +12,9 @@ class Lesson(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     teacher_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    learning_profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("learning_profiles.id", ondelete="SET NULL"), index=True
+    )
     meeting_id: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     meeting_uuid: Mapped[str] = mapped_column(String(512), nullable=False)
     transcript_download_url: Mapped[str | None] = mapped_column(Text)
@@ -24,4 +27,6 @@ class Lesson(Base):
     )
 
     teacher = relationship("User", back_populates="lessons")
+    learning_profile = relationship("LearningProfile", back_populates="lessons")
     analysis = relationship("LessonAnalysis", back_populates="lesson", cascade="all, delete-orphan", uselist=False)
+    vocabulary_cards = relationship("VocabularyCard", back_populates="lesson")
