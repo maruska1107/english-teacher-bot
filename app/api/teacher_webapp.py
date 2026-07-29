@@ -81,6 +81,7 @@ let selectedProfile = null;
 let currentTab = "draft";
 let draftCards = [];
 let publishedCards = [];
+let addFormOpen = false;
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -218,6 +219,7 @@ function addWordPanel() {
   return `
     <section class="panel" id="add-word-panel">
       <h3>+ Добавить слово</h3>
+      <p class="lead">Добавленное слово появится в конце списка новых карточек.</p>
       <label>Слово / фраза</label>
       <input name="new_term" placeholder="journey">
       <label>Перевод</label>
@@ -231,9 +233,14 @@ function addWordPanel() {
       <label>Уровень</label>
       <input name="new_level" placeholder="B1">
       <div class="actions">
-        <button class="secondary" data-action="create-card">+ Добавить слово</button>
+        <button class="secondary" data-action="create-card">Добавить в список</button>
+        <button class="ghost" data-action="hide-add-form">Отмена</button>
       </div>
     </section>`;
+}
+
+function addWordCollapsedButton() {
+  return '<div class="actions"><button class="secondary" data-action="show-add-form">+ Добавить слово</button></div>';
 }
 
 function payloadFromCard(cardEl) {
@@ -268,6 +275,7 @@ function renderSelectedProfile() {
   const publishButton = isNewTab
     ? `<button class="primary" data-action="publish-all" ${publishDisabled}>Опубликовать все карточки</button>`
     : "";
+  const addWordHtml = isNewTab ? (addFormOpen ? addWordPanel() : addWordCollapsedButton()) : "";
 
   detailEl.innerHTML = `
     <button class="ghost" data-action="back-to-profiles">← Назад к ученикам и группам</button>
@@ -283,8 +291,8 @@ function renderSelectedProfile() {
         <button class="${!isNewTab ? "tab-active" : "secondary"}" data-action="tab-published">Опубликованные</button>
       </div>
       <div id="profile-cards">${cardHtml}</div>
+      ${addWordHtml}
       <div class="actions">${publishButton}</div>
-      ${isNewTab ? addWordPanel() : ""}
     </section>`;
 }
 
@@ -339,12 +347,14 @@ async function createManualCard() {
     setStatus("Заполните слово и перевод");
     return;
   }
-  await api("/api/teacher/cards", {
+  const createdCard = await api("/api/teacher/cards", {
     method: "POST",
     body: JSON.stringify(payload),
   });
   await refreshProfilesAndSelectedCardCounts();
-  await loadProfileCards();
+  draftCards.push(createdCard);
+  addFormOpen = false;
+  renderSelectedProfile();
   setStatus("Слово добавлено в новые карточки");
 }
 
@@ -364,10 +374,20 @@ detailEl.addEventListener("click", async (event) => {
     }
     if (button.dataset.action === "tab-draft") {
       currentTab = "draft";
+      addFormOpen = false;
       renderSelectedProfile();
     }
     if (button.dataset.action === "tab-published") {
       currentTab = "published";
+      addFormOpen = false;
+      renderSelectedProfile();
+    }
+    if (button.dataset.action === "show-add-form") {
+      addFormOpen = true;
+      renderSelectedProfile();
+    }
+    if (button.dataset.action === "hide-add-form") {
+      addFormOpen = false;
       renderSelectedProfile();
     }
     if (button.dataset.action === "create-card") {

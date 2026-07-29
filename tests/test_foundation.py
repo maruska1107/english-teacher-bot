@@ -101,7 +101,10 @@ def test_teacher_cards_webapp_page_is_available():
     assert "Удалить" in response.text
     assert "+N новых слов" in response.text
     assert "Профилей пока нет" in response.text
-    assert response.text.index('id="profile-cards"') < response.text.index("${isNewTab ? addWordPanel()")
+    assert 'data-action="show-add-form"' in response.text
+    assert response.text.index('id="profile-cards"') < response.text.index("${addWordHtml}")
+    assert response.text.index("${addWordHtml}") < response.text.index('<div class="actions">${publishButton}</div>')
+    assert "draftCards.push(createdCard)" in response.text
     assert "archive" not in response.text
 
     head_response = client.head("/teacher/cards")
