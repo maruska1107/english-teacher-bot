@@ -41,19 +41,13 @@ Study cards include every card whose student progress status is not `known`:
 
 This section explains what remains to learn.
 
-It shows two groups:
+It shows one group:
 
 ```text
 Новые от преподавателя
 ```
 
 Cards with status `new`.
-
-```text
-Уже в изучении
-```
-
-Cards with status `learning`.
 
 The section has a button:
 
@@ -114,7 +108,6 @@ Use simple Russian:
 - `Статистика`
 - `Все карточки`
 - `Новые от преподавателя`
-- `Уже в изучении`
 - `Учить эти слова`
 - `Мой прогресс`
 
@@ -129,7 +122,6 @@ Page-level tests should verify that `/student/cards` contains:
 - `Статистика`
 - `Все карточки`
 - `Новые от преподавателя`
-- `Уже в изучении`
 - `Учить эти слова`
 - `renderStats`
 - `renderUnlearned`

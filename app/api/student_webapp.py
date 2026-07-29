@@ -278,14 +278,12 @@ function renderUnlearned() {
   unlearnedEl.classList.remove("hidden");
 
   const newCards = cardsByStatus("new");
-  const learningCards = cardsByStatus("learning");
   unlearnedEl.innerHTML = `
     ${renderCardGroup("Новые от преподавателя", newCards)}
-    ${renderCardGroup("Уже в изучении", learningCards)}
     <div class="actions">
       <button class="mode-button" data-action="study-unlearned">Учить эти слова</button>
     </div>`;
-  setStatus(`Неизученных карточек: ${newCards.length + learningCards.length}`);
+  setStatus(`Новых карточек: ${newCards.length}`);
 }
 
 function renderList() {

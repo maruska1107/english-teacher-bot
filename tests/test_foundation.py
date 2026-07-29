@@ -139,7 +139,7 @@ def test_student_cards_webapp_page_is_available():
     assert "min-height: 340px" in response.text
     assert "overflow-y: auto" in response.text
     assert "Новые от преподавателя" in response.text
-    assert "Уже в изучении" in response.text
+    assert "Уже в изучении" not in response.text
     assert "Учить эти слова" in response.text
     assert "renderUnlearned" in response.text
     assert "renderStats" in response.text
