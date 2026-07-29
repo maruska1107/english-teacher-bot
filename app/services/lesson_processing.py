@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.analysis.service import AnalysisService, LLMJsonClient
 from app.core.config import Settings
-from app.models import Lesson
+from app.models import Lesson, VocabularyCard
 from app.repositories.zoom_tokens import ZoomTokenRepository
 from app.telegram.notifier import TelegramBotNotifier, TelegramNotifierProtocol
 from app.zoom.transcripts import TranscriptClientProtocol, ZoomTranscriptClient
@@ -38,9 +38,10 @@ class LessonProcessingService:
             self._clear_processed_source_data(lesson)
             lesson.processing_status = "completed"
             self.session.commit()
+            draft_card_count = self._draft_card_count(lesson.id)
             await self._notifier().send_message(
                 lesson.teacher.telegram_user_id,
-                self._teacher_message(analysis.teacher_report),
+                self._teacher_message(analysis.teacher_report, draft_card_count),
             )
             if self.settings.telegram_admin_id is not None:
                 await self._notifier().send_message(
@@ -85,5 +86,11 @@ class LessonProcessingService:
             self.notifier = TelegramBotNotifier(self.settings)
         return self.notifier
 
-    def _teacher_message(self, teacher_report: str) -> str:
-        return f"Отчёт по уроку готов\n\n{teacher_report}"
+    def _draft_card_count(self, lesson_id: int) -> int:
+        return self.session.query(VocabularyCard).filter_by(lesson_id=lesson_id, status="draft").count()
+
+    def _teacher_message(self, teacher_report: str, draft_card_count: int = 0) -> str:
+        message = f"Отчёт по уроку готов\n\n{teacher_report}"
+        if draft_card_count:
+            message = f"{message}\n\nНовые draft-карточки: {draft_card_count}"
+        return message

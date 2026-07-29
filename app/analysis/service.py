@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.models import Lesson, LessonAnalysis
 from app.prompts.lesson_analysis import LESSON_ANALYSIS_PROMPT_TEMPLATE, PROMPT_VERSION
+from app.repositories.vocabulary_cards import VocabularyCardRepository
 from app.schemas.analysis import LessonAnalysisResult
 
 
@@ -86,10 +87,21 @@ class AnalysisService:
             analysis.student_message = result.student_message
             analysis.model = self.settings.openai_model
             analysis.prompt_version = PROMPT_VERSION
+        self._save_draft_vocabulary_cards(lesson, result)
         lesson.processing_status = "analyzed"
         lesson.processing_error = None
         self.session.commit()
         return analysis
+
+    def _save_draft_vocabulary_cards(self, lesson: Lesson, result: LessonAnalysisResult) -> None:
+        if lesson.learning_profile_id is None or not result.vocabulary_cards:
+            return
+        VocabularyCardRepository(self.session).create_draft_cards(
+            teacher_user_id=lesson.teacher_user_id,
+            learning_profile_id=lesson.learning_profile_id,
+            lesson_id=lesson.id,
+            cards=[card.model_dump(mode="json") for card in result.vocabulary_cards],
+        )
 
     def _mark_failed(self, lesson: Lesson, message: str) -> None:
         lesson.processing_status = "failed"

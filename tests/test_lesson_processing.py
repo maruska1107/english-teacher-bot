@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.db.base import Base
-from app.models import Lesson, User, ZoomToken
+from app.models import LearningProfile, Lesson, User, ZoomToken
 from app.services.lesson_processing import LessonProcessingService
 
 
@@ -31,6 +31,16 @@ class FakeLLMClient:
                     }
                 ],
                 "vocabulary": ["travel"],
+                "vocabulary_cards": [
+                    {
+                        "term": "travel",
+                        "translation_ru": "путешествовать",
+                        "definition_en": "To go from one place to another.",
+                        "example_sentence": "I travel by train.",
+                        "source_phrase": "travel",
+                        "level": "A2",
+                    }
+                ],
                 "homework": ["Write 5 Past Simple sentences"],
                 "teacher_recommendations": ["Review irregular verbs"],
                 "student_message": "Сегодня мы потренировали Past Simple. Домашнее задание: 5 предложений.",
@@ -72,8 +82,17 @@ async def test_process_pending_lesson_downloads_transcript_analyzes_and_notifies
             expires_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
     )
+    profile = LearningProfile(
+        teacher_user_id=teacher.id,
+        name="Speaking B1",
+        profile_type="group",
+        card_publish_mode="manual_review",
+    )
+    session.add(profile)
+    session.flush()
     lesson = Lesson(
         teacher_user_id=teacher.id,
+        learning_profile_id=profile.id,
         meeting_id="1",
         meeting_uuid="uuid-1",
         transcript_download_url="https://zoom.example/transcript.vtt",
@@ -99,5 +118,6 @@ async def test_process_pending_lesson_downloads_transcript_analyzes_and_notifies
     assert processed_lesson.analysis is not None
     assert notifier.messages[0][0] == 1001
     assert "Отчёт по уроку" in notifier.messages[0][1]
+    assert "Новые draft-карточки: 1" in notifier.messages[0][1]
     assert notifier.messages[1][0] == 9001
     assert "Скопирован отчёт по уроку" in notifier.messages[1][1]
