@@ -59,7 +59,13 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
 .reveal-hint { margin: 0; font-size: 14px; color: var(--tg-theme-hint-color, #6b7280); }
 .card-list { margin-top: 18px; }
 .card-mode-switch { display: flex; gap: 8px; margin: 12px 0; }
-.card-mode-switch button { flex: 1; }
+.card-mode-switch button { flex: 1; padding: 10px 12px; border-radius: 999px; font-size: 14px; }
+.card-mode-tab-active { background: #dbeafe; color: #1d4ed8; }
+.card-mode-tab { background: #f3f4f6; color: #374151; }
+.filter-switch { justify-content: flex-start; margin: 8px 0 6px; }
+.filter-switch button { flex: 0 0 auto; padding: 8px 12px; border-radius: 999px; font-size: 13px; }
+.filter-chip-active { background: #dcfce7; color: #166534; }
+.filter-chip { background: #f3f4f6; color: #4b5563; }
 .list-card {
   margin: 10px 0;
   padding: 14px;
@@ -68,6 +74,7 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   background: var(--tg-theme-secondary-bg-color, #ffffff);
 }
 .list-card strong { display: block; font-size: 18px; margin-bottom: 4px; }
+.list-card .actions { justify-content: flex-end; }
 .badge {
   display: inline-block;
   margin-left: 8px;
@@ -173,8 +180,8 @@ function setActiveSection(section) {
 }
 
 function cardModeSwitch() {
-  const studyClass = currentCardMode === "study" ? "tab-active" : "secondary-button";
-  const listClass = currentCardMode === "list" ? "tab-active" : "secondary-button";
+  const studyClass = currentCardMode === "study" ? "card-mode-tab-active" : "card-mode-tab";
+  const listClass = currentCardMode === "list" ? "card-mode-tab-active" : "card-mode-tab";
   return `
     <div class="card-mode-switch" aria-label="Режим карточек">
       <button type="button" class="${studyClass}" data-card-mode="study">Учить</button>
@@ -261,10 +268,10 @@ function flipCard() {
 }
 
 function listFilterSwitch() {
-  const learningClass = listFilter === "learning" ? "tab-active" : "secondary-button";
-  const knownClass = listFilter === "known" ? "tab-active" : "secondary-button";
+  const learningClass = listFilter === "learning" ? "filter-chip-active" : "filter-chip";
+  const knownClass = listFilter === "known" ? "filter-chip-active" : "filter-chip";
   return `
-    <div class="card-mode-switch" aria-label="Фильтр списка">
+    <div class="card-mode-switch filter-switch" aria-label="Фильтр списка">
       <button type="button" class="${learningClass}" data-list-filter="learning">Учу</button>
       <button type="button" class="${knownClass}" data-list-filter="known">Знаю</button>
     </div>`;

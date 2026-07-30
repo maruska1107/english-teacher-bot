@@ -57,6 +57,8 @@ This mode shows all published cards. Under the internal `Учить / Списо
 Знаю
 ```
 
+The `Учить / Список` switch is visually secondary to the top-level tabs: smaller rounded segmented buttons with a light blue active state. The `Учу / Знаю` filters are compact chips with a light green active state so the three button rows do not look identical.
+
 `Учу` contains cards with status `new` or `learning`. `Знаю` contains cards with status `known`.
 
 Under the filters, it shows a bold line with the same style and placement as the study position line:

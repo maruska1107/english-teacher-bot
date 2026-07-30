@@ -152,6 +152,12 @@ def test_student_cards_webapp_page_is_available():
     assert "listFilter" in response.text
     assert 'data-list-filter="learning"' in response.text
     assert 'data-list-filter="known"' in response.text
+    assert "card-mode-tab-active" in response.text
+    assert "filter-chip-active" in response.text
+    assert "filter-switch" in response.text
+    assert ".list-card .actions" in response.text
+    assert "justify-content: flex-end" in response.text
+    assert "#dbeafe" in response.text
     assert "Повторять" in response.text
     assert "Новое" not in response.text
     assert "statusLabel" not in response.text
