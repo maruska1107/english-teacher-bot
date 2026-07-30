@@ -160,7 +160,18 @@ def test_marketplace_required_pages_are_available():
     expected_pages = {
         "/privacy": ["Privacy Policy", "data subject rights", "Zoom OAuth", "video recordings"],
         "/terms": ["Terms of Use", "English Tutor AI", "Zoom", "Telegram"],
-        "/support": ["Support", "EnglishTutorHelperAIBot", "Telegram"],
+        "/support": [
+            "Support",
+            "support@englishtutorai.ru",
+            "EnglishTutorHelperAIBot",
+            "Telegram",
+            "Support channels",
+            "What to include",
+            "First response SLA",
+            "within 2 business days",
+            "Zoom connection",
+            "meeting link",
+        ],
         "/documentation": [
             "Zoom App Documentation",
             "Adding English Tutor AI",

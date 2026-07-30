@@ -244,11 +244,39 @@ def support() -> str:
       <h1>Support</h1>
       <p class="lead">Need help with English Tutor AI?</p>
       <p>
-        Support is provided through the Telegram bot. Open the bot and send your question or issue details.
+        English Tutor AI provides support for app setup, Zoom connection issues, meeting processing,
+        vocabulary cards, and student flashcard practice.
       </p>
+
+      <h2>Support channels</h2>
+      <ul>
+        <li>
+          Email support:
+          <a href="mailto:support@englishtutorai.ru">support@englishtutorai.ru</a>
+        </li>
+        <li>
+          Telegram support:
+          <a href="https://t.me/EnglishTutorHelperAIBot">https://t.me/EnglishTutorHelperAIBot</a>
+        </li>
+      </ul>
       <a class="button" href="https://t.me/EnglishTutorHelperAIBot" rel="noopener noreferrer">
         Open EnglishTutorHelperAIBot in Telegram
       </a>
+
+      <h2>What to include</h2>
+      <p>Please include enough information for the support team to investigate the issue:</p>
+      <ul>
+        <li>Your Zoom connection status or the command you used.</li>
+        <li>The Zoom meeting link or meeting ID related to the issue, if applicable.</li>
+        <li>A short description of what happened and what you expected.</li>
+        <li>Any error message shown in Telegram or the WebApp.</li>
+      </ul>
+
+      <h2>First response SLA</h2>
+      <p>
+        We aim to send a first response within 2 business days. Urgent access or Zoom connection issues
+        are prioritized when enough details are provided.
+      </p>
 
       <h2>Useful commands</h2>
       <ul>
