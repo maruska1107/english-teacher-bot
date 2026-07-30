@@ -50,7 +50,11 @@ Study cards include every card whose student progress status is not `known`:
 
 ### Mode: Список
 
-This mode shows all published cards.
+This mode shows all published cards. Under the internal `Учить / Список` buttons it shows a bold line with the same style and placement as the study position line:
+
+```text
+Слов: N
+```
 
 Each card shows:
 
@@ -123,6 +127,7 @@ Page-level tests should verify that `/student/cards` contains:
 - `statusLabel`
 - `Повторять`
 - `renderCardList`
+- `Слов: ${allCards.length}` inside `.study-progress`
 - `renderStats`
 - no top-level `summary-grid` block before the study section
 - no `data-section="unlearned"`

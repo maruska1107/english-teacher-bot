@@ -286,8 +286,11 @@ function renderCardList() {
   const listHtml = allCards.length
     ? allCards.map((card) => cardListTemplate(card)).join("")
     : '<div class="empty">Слов пока нет.</div>';
-  studyEl.innerHTML = `${cardModeSwitch()}<div class="card-list">${listHtml}</div>`;
-  setStatus(`Слов: ${allCards.length}`);
+  studyEl.innerHTML = `
+    ${cardModeSwitch()}
+    <div class="study-progress">Слов: ${allCards.length}</div>
+    <div class="card-list">${listHtml}</div>`;
+  setStatus("");
 }
 
 function renderCurrentSection() {
