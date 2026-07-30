@@ -33,7 +33,7 @@ The study section must not show progress summary blocks or a separate full-list 
 If there are cards with status `new`, the card position line shows a compact badge:
 
 ```text
-+N новых слов
+Новых слов: +N
 ```
 
 Study cards include every card whose student progress status is not `known`:
@@ -75,7 +75,7 @@ Use simple Russian:
 
 - `Карточки`
 - `Статистика`
-- `+N новых слов`
+- `Новых слов: +N`
 - `Мой прогресс`
 
 Do not use technical wording like `progress`, `status`, or `dataset` in visible UI.
@@ -86,7 +86,7 @@ Page-level tests should verify that `/student/cards` contains:
 
 - `Карточки`
 - `Статистика`
-- `+${newCount} новых слов`
+- `Новых слов: +${newCount}`
 - `renderStats`
 - no top-level `summary-grid` block before the study section
 - no `data-section="unlearned"`

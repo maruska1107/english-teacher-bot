@@ -144,7 +144,7 @@ def test_student_cards_webapp_page_is_available():
     assert "Знаю" in response.text
     assert "min-height: 340px" in response.text
     assert "overflow-y: auto" in response.text
-    assert "+${newCount} новых слов" in response.text
+    assert "Новых слов: +${newCount}" in response.text
     assert "Новые от преподавателя" not in response.text
     assert "Уже в изучении" not in response.text
     assert "Учить эти слова" not in response.text

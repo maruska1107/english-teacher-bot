@@ -218,7 +218,7 @@ function renderStudyCard() {
 
   const revealHint = isFlipped ? "Выберите, насколько хорошо помните слово" : "Сначала вспоминаем перевод сами";
   const newCount = countByStatus("new");
-  const newBadge = newCount ? `<span class="badge">+${newCount} новых слов</span>` : "";
+  const newBadge = newCount ? `<span class="badge">Новых слов: +${newCount}</span>` : "";
 
   studyEl.innerHTML = `
     <div class="study-progress">Карточка ${currentIndex + 1} из ${studyCards.length} ${newBadge}</div>
