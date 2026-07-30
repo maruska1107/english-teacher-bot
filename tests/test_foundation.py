@@ -149,12 +149,16 @@ def test_student_cards_webapp_page_is_available():
     assert "Учить" in response.text
     assert "Список" in response.text
     assert "renderCardList" in response.text
-    assert "statusLabel" in response.text
+    assert "listFilter" in response.text
+    assert 'data-list-filter="learning"' in response.text
+    assert 'data-list-filter="known"' in response.text
     assert "Повторять" in response.text
-    assert "Новое" in response.text
-    assert "Слов: ${allCards.length}" in response.text
-    assert '<div class="study-progress">Слов: ${allCards.length}</div>' in response.text
-    assert "setStatus(`Слов: ${allCards.length}`)" not in response.text
+    assert "Новое" not in response.text
+    assert "statusLabel" not in response.text
+    assert '<span class="badge">${statusLabel(card.status)}</span>' not in response.text
+    assert "Слов: ${cards.length}" in response.text
+    assert '<div class="study-progress">Слов: ${cards.length}</div>' in response.text
+    assert "setStatus(`Слов:" not in response.text
     assert "Новые от преподавателя" not in response.text
     assert "Уже в изучении" not in response.text
     assert "Учить эти слова" not in response.text

@@ -110,6 +110,7 @@ let currentIndex = 0;
 let isFlipped = false;
 let currentSection = "cards";
 let currentCardMode = "study";
+let listFilter = "learning";
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -179,12 +180,6 @@ function cardModeSwitch() {
       <button type="button" class="${studyClass}" data-card-mode="study">Учить</button>
       <button type="button" class="${listClass}" data-card-mode="list">Список</button>
     </div>`;
-}
-
-function statusLabel(status) {
-  if (status === "known") return "Знаю";
-  if (status === "learning") return "Учу";
-  return "Новое";
 }
 
 function renderStats() {
@@ -265,6 +260,23 @@ function flipCard() {
   renderStudyCard();
 }
 
+function listFilterSwitch() {
+  const learningClass = listFilter === "learning" ? "tab-active" : "secondary-button";
+  const knownClass = listFilter === "known" ? "tab-active" : "secondary-button";
+  return `
+    <div class="card-mode-switch" aria-label="Фильтр списка">
+      <button type="button" class="${learningClass}" data-list-filter="learning">Учу</button>
+      <button type="button" class="${knownClass}" data-list-filter="known">Знаю</button>
+    </div>`;
+}
+
+function getFilteredListCards() {
+  if (listFilter === "known") {
+    return allCards.filter((card) => card.status === "known");
+  }
+  return allCards.filter((card) => card.status !== "known");
+}
+
 function cardListTemplate(card) {
   const action = card.status === "known"
     ? '<button class="learning" data-list-progress="learning">Повторять</button>'
@@ -274,7 +286,6 @@ function cardListTemplate(card) {
       <strong>${escapeHtml(card.term)}</strong>
       <div>${escapeHtml(card.translation_ru)}</div>
       ${card.example_sentence ? `<div>${escapeHtml(card.example_sentence)}</div>` : ""}
-      <span class="badge">${statusLabel(card.status)}</span>
       <div class="actions">${action}</div>
     </article>`;
 }
@@ -283,12 +294,14 @@ function renderCardList() {
   hideSections();
   setActiveSection("cards");
   studyEl.classList.remove("hidden");
-  const listHtml = allCards.length
-    ? allCards.map((card) => cardListTemplate(card)).join("")
+  const cards = getFilteredListCards();
+  const listHtml = cards.length
+    ? cards.map((card) => cardListTemplate(card)).join("")
     : '<div class="empty">Слов пока нет.</div>';
   studyEl.innerHTML = `
     ${cardModeSwitch()}
-    <div class="study-progress">Слов: ${allCards.length}</div>
+    ${listFilterSwitch()}
+    <div class="study-progress">Слов: ${cards.length}</div>
     <div class="card-list">${listHtml}</div>`;
   setStatus("");
 }
@@ -350,6 +363,13 @@ studyEl.addEventListener("click", async (event) => {
     currentIndex = 0;
     isFlipped = false;
     renderCurrentSection();
+    return;
+  }
+
+  const filterButton = event.target.closest("button[data-list-filter]");
+  if (filterButton) {
+    listFilter = filterButton.dataset.listFilter;
+    renderCardList();
     return;
   }
 

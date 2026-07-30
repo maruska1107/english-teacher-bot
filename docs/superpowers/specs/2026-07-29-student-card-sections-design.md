@@ -50,7 +50,16 @@ Study cards include every card whose student progress status is not `known`:
 
 ### Mode: Список
 
-This mode shows all published cards. Under the internal `Учить / Список` buttons it shows a bold line with the same style and placement as the study position line:
+This mode shows all published cards. Under the internal `Учить / Список` buttons it shows list filters:
+
+```text
+Учу
+Знаю
+```
+
+`Учу` contains cards with status `new` or `learning`. `Знаю` contains cards with status `known`.
+
+Under the filters, it shows a bold line with the same style and placement as the study position line:
 
 ```text
 Слов: N
@@ -60,8 +69,9 @@ Each card shows:
 
 - English word/phrase;
 - Russian translation;
-- optional example;
-- status label in Russian: `Новое`, `Учу`, or `Знаю`.
+- optional example.
+
+Cards do not show per-card status labels; the selected filter communicates which group is being viewed.
 
 Actions:
 
@@ -105,7 +115,6 @@ Use simple Russian:
 - `Учить`
 - `Список`
 - `Новых слов: +N`
-- `Новое`
 - `Учу`
 - `Знаю`
 - `Повторять`
@@ -124,10 +133,14 @@ Page-level tests should verify that `/student/cards` contains:
 - `Учить`
 - `Список`
 - `Новых слов: +${newCount}`
-- `statusLabel`
+- `listFilter`
+- `data-list-filter="learning"`
+- `data-list-filter="known"`
+- no `statusLabel`
+- no per-card status badge
 - `Повторять`
 - `renderCardList`
-- `Слов: ${allCards.length}` inside `.study-progress`
+- `Слов: ${cards.length}` inside `.study-progress`
 - `renderStats`
 - no top-level `summary-grid` block before the study section
 - no `data-section="unlearned"`
