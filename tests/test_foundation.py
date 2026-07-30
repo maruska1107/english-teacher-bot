@@ -161,7 +161,21 @@ def test_marketplace_required_pages_are_available():
         "/privacy": ["Privacy Policy", "data subject rights", "Zoom OAuth", "video recordings"],
         "/terms": ["Terms of Use", "English Tutor AI", "Zoom", "Telegram"],
         "/support": ["Support", "EnglishTutorHelperAIBot", "Telegram"],
-        "/documentation": ["Zoom App Documentation", "/connect_zoom", "/disconnect_zoom", "remove"],
+        "/documentation": [
+            "Zoom App Documentation",
+            "Adding English Tutor AI",
+            "Requirements before using Zoom features",
+            "Using the App",
+            "Connect Zoom",
+            "Add a Zoom meeting",
+            "Review vocabulary cards",
+            "Student flashcard practice",
+            "Troubleshooting",
+            "Removing the App",
+            "Requesting data deletion",
+            "/connect_zoom",
+            "/disconnect_zoom",
+        ],
     }
 
     for path, expected_texts in expected_pages.items():

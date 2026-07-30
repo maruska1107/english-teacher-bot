@@ -274,41 +274,93 @@ def documentation() -> str:
         """
       <h1>Zoom App Documentation</h1>
       <p class="lead">
-        This guide explains how to add, use, configure, and remove the English Tutor AI Zoom integration.
+        This guide explains how to add, use, troubleshoot, and remove the English Tutor AI Zoom integration.
       </p>
 
-      <h2>Add the app</h2>
+      <h2>Adding English Tutor AI</h2>
       <ol>
         <li>Open the Telegram bot: <a href="https://t.me/EnglishTutorHelperAIBot">EnglishTutorHelperAIBot</a>.</li>
         <li>Send <code>/connect_zoom</code>.</li>
         <li>Open the generated Zoom authorization link.</li>
+        <li>Sign in to the Zoom account that owns or has access to the lessons you want to process.</li>
         <li>Approve the requested Zoom permissions.</li>
+        <li>Return to Telegram. The bot will confirm that Zoom is connected.</li>
       </ol>
 
-      <h2>Configure lesson processing</h2>
+      <h2>Requirements before using Zoom features</h2>
+      <ul>
+        <li>The tutor must connect a Zoom account with access to the meeting data.</li>
+        <li>The lesson meeting must be explicitly added in Telegram before it is processed.</li>
+        <li>Cloud recording and audio transcript data must be available in Zoom for transcript-based reports.</li>
+        <li>The app does not process every Zoom meeting automatically.</li>
+      </ul>
+
+      <h2>Using the App</h2>
+      <h3>Connect Zoom</h3>
       <ol>
-        <li>In Zoom Web Portal, open Settings → Recording.</li>
-        <li>Enable cloud recording.</li>
-        <li>Enable audio transcription / create audio transcript.</li>
-        <li>In Telegram, send <code>/add_zoom_meeting &lt;Zoom meeting link&gt;</code>.</li>
+        <li>Open the Telegram bot.</li>
+        <li>Send <code>/connect_zoom</code>.</li>
+        <li>Complete the Zoom OAuth authorization flow.</li>
       </ol>
 
-      <h2>Use the app</h2>
+      <h3>Add a Zoom meeting</h3>
+      <ol>
+        <li>Copy the Zoom meeting link for the lesson you want to process.</li>
+        <li>In Telegram, send <code>/add_zoom_meeting &lt;Zoom meeting link&gt;</code>.</li>
+        <li>The app will use the connected Zoom account to access available data for that specific meeting.</li>
+      </ol>
+
+      <h3>Receive lesson follow-up</h3>
       <p>
-        After an added Zoom meeting is completed and Zoom prepares the lesson data, the app receives a
-        Zoom webhook and creates a lesson report for the tutor.
+        After Zoom makes the lesson data available, English Tutor AI prepares lesson follow-up for the tutor.
+        The tutor receives the result in Telegram when processing is complete.
       </p>
 
-      <h2>Remove the app</h2>
+      <h3>Review vocabulary cards</h3>
+      <p>
+        Tutors can open the teacher WebApp from Telegram to review new vocabulary cards, edit text,
+        delete unwanted cards, add words manually, and publish approved cards to students.
+      </p>
+
+      <h3>Student flashcard practice</h3>
+      <p>
+        Students open the student WebApp from Telegram to study published vocabulary with flip cards.
+        The student first sees the English word or phrase, taps to reveal the Russian translation,
+        and marks the card as <strong>Не знаю</strong>, <strong>Ещё учу</strong>, or <strong>Знаю</strong>.
+      </p>
+
+      <h2>Troubleshooting</h2>
       <ul>
-        <li>Send <code>/disconnect_zoom</code> in Telegram to remove the Zoom connection from the app.</li>
-        <li>You can also remove the app from your Zoom account in Zoom Marketplace settings.</li>
+        <li>If Zoom is not connected, send <code>/connect_zoom</code> again in Telegram.</li>
+        <li>If the meeting is not processed, check that the exact Zoom meeting link was added in Telegram.</li>
+        <li>If lesson data is unavailable, check that the connected Zoom account has access to the meeting data.</li>
+        <li>
+          If transcript-based reports are missing, check that cloud recording and audio transcription are enabled.
+        </li>
+        <li>
+          If access was changed in Zoom, disconnect and reconnect Zoom with <code>/disconnect_zoom</code>
+          and <code>/connect_zoom</code>.
+        </li>
       </ul>
+
+      <h2>Removing the App</h2>
+      <ul>
+        <li>Send <code>/disconnect_zoom</code> in Telegram to remove the Zoom connection from English Tutor AI.</li>
+        <li>You can also remove the app from your Zoom account in Zoom Marketplace settings.</li>
+        <li>After removal, English Tutor AI will no longer use that Zoom authorization for new lesson processing.</li>
+      </ul>
+
+      <h2>Requesting data deletion</h2>
+      <p>
+        To request deletion of stored service data, contact support through the Telegram bot:
+        <a href="https://t.me/EnglishTutorHelperAIBot">https://t.me/EnglishTutorHelperAIBot</a>.
+      </p>
 
       <h2>Data handling</h2>
       <p>
         The app only processes meetings explicitly added by the tutor, does not store video recordings,
-        and deletes source lesson data after processing.
+        and deletes source lesson data after processing. Generated reports, vocabulary cards, and service
+        records needed to operate the app may be stored.
       </p>
         """,
     )
