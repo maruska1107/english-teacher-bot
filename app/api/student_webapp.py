@@ -239,7 +239,7 @@ function renderStudyCard() {
       <p class="reveal-hint">${revealHint}</p>
     </article>
     ${actions}`;
-  setStatus(`К изучению: ${studyCards.length}`);
+  setStatus("");
 }
 
 function flipCard() {
@@ -420,12 +420,11 @@ def _page() -> str:
 <body>
   <main class="page">
     <h1>Мои карточки</h1>
-    <p class="lead">Повторяйте слова после уроков: английское слово, переворот и ответ.</p>
     <div class="toolbar" aria-label="Разделы карточек">
-      <button type="button" data-section="study" class="mode-button">Учить</button>
-      <button type="button" data-section="unlearned" class="secondary-button">Неизученное</button>
+      <button type="button" data-section="study" class="mode-button">Обучение</button>
+      <button type="button" data-section="unlearned" class="secondary-button">Новое</button>
       <button type="button" data-section="stats" class="secondary-button">Статистика</button>
-      <button type="button" data-section="all" class="secondary-button">Все карточки</button>
+      <button type="button" data-section="all" class="secondary-button">Все</button>
     </div>
     <div id="status" class="status">Загрузка...</div>
     <section id="study" class="study-area"></section>

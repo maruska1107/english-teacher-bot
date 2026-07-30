@@ -124,10 +124,12 @@ def test_student_cards_webapp_page_is_available():
     assert "Telegram.WebApp" in response.text
     assert "x-telegram-init-data" in response.text
     assert "/api/student/cards" in response.text
-    assert "Учить" in response.text
-    assert "Неизученное" in response.text
+    assert "Обучение" in response.text
+    assert "Новое" in response.text
     assert "Статистика" in response.text
-    assert "Все карточки" in response.text
+    assert "Все" in response.text
+    assert "Повторяйте слова после уроков" not in response.text
+    assert "К изучению" not in response.text
     assert "Нажмите, чтобы перевернуть" in response.text
     assert "studyCards" in response.text
     assert 'card.status !== "known"' in response.text

@@ -11,13 +11,13 @@ Make the student card WebApp cleaner by separating study, unlearned cards, stati
 The student WebApp `/student/cards` has four top-level buttons:
 
 ```text
-Учить
-Неизученное
+Обучение
+Новое
 Статистика
-Все карточки
+Все
 ```
 
-## Section: Учить
+## Section: Обучение
 
 This is the main study mode.
 
@@ -30,14 +30,16 @@ It must show only the flip-card learning flow:
    - `Ещё учу`
    - `Знаю`
 
-The study section must not show progress summary blocks or new-card summary blocks above the card. It may show only the card position, for example `Карточка 1 из 12`.
+The study section must not show progress summary blocks or new-card summary blocks above the card.
+It may show only the card position, for example `Карточка 1 из 12`.
+It must not show a separate `К изучению` status line.
 
 Study cards include every card whose student progress status is not `known`:
 
 - `new`
 - `learning`
 
-## Section: Неизученное
+## Section: Новое
 
 This section explains what remains to learn.
 
@@ -55,7 +57,7 @@ The section has a button:
 Учить эти слова
 ```
 
-This button does not create a separate set and does not change card status by itself. It switches the WebApp back to the `Учить` section, where all unlearned cards are already included.
+This button does not create a separate set and does not change card status by itself. It switches the WebApp back to the `Обучение` section, where all unlearned cards are already included.
 
 ## Section: Статистика
 
@@ -73,7 +75,7 @@ This section contains the existing progress summary previously shown at the top 
 
 No additional backend endpoint is needed. The frontend calculates these values from `/api/student/cards`.
 
-## Section: Все карточки
+## Section: Все
 
 This section keeps the full list of published cards.
 
@@ -103,10 +105,10 @@ The existing `/api/student/cards` endpoint already returns published cards and s
 
 Use simple Russian:
 
-- `Учить`
-- `Неизученное`
+- `Обучение`
+- `Новое`
 - `Статистика`
-- `Все карточки`
+- `Все`
 - `Новые от преподавателя`
 - `Учить эти слова`
 - `Мой прогресс`
@@ -117,10 +119,10 @@ Do not use technical wording like `progress`, `status`, or `dataset` in visible 
 
 Page-level tests should verify that `/student/cards` contains:
 
-- `Учить`
-- `Неизученное`
+- `Обучение`
+- `Новое`
 - `Статистика`
-- `Все карточки`
+- `Все`
 - `Новые от преподавателя`
 - `Учить эти слова`
 - `renderStats`
