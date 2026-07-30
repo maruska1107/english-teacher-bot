@@ -58,6 +58,16 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
 .flashcard-extra { margin: 0; font-size: 17px; line-height: 1.4; color: var(--tg-theme-hint-color, #4b5563); }
 .reveal-hint { margin: 0; font-size: 14px; color: var(--tg-theme-hint-color, #6b7280); }
 .card-list { margin-top: 18px; }
+.card-mode-switch { display: flex; gap: 8px; margin: 12px 0; }
+.card-mode-switch button { flex: 1; }
+.list-card {
+  margin: 10px 0;
+  padding: 14px;
+  border: 1px solid var(--tg-theme-section_separator_color, #e5e7eb);
+  border-radius: 16px;
+  background: var(--tg-theme-secondary-bg-color, #ffffff);
+}
+.list-card strong { display: block; font-size: 18px; margin-bottom: 4px; }
 .badge {
   display: inline-block;
   margin-left: 8px;
@@ -99,6 +109,7 @@ let studyCards = [];
 let currentIndex = 0;
 let isFlipped = false;
 let currentSection = "cards";
+let currentCardMode = "study";
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -160,6 +171,22 @@ function setActiveSection(section) {
   });
 }
 
+function cardModeSwitch() {
+  const studyClass = currentCardMode === "study" ? "tab-active" : "secondary-button";
+  const listClass = currentCardMode === "list" ? "tab-active" : "secondary-button";
+  return `
+    <div class="card-mode-switch" aria-label="Режим карточек">
+      <button type="button" class="${studyClass}" data-card-mode="study">Учить</button>
+      <button type="button" class="${listClass}" data-card-mode="list">Список</button>
+    </div>`;
+}
+
+function statusLabel(status) {
+  if (status === "known") return "Знаю";
+  if (status === "learning") return "Учу";
+  return "Новое";
+}
+
 function renderStats() {
   hideSections();
   setActiveSection("stats");
@@ -194,7 +221,7 @@ function renderStudyCard() {
   studyCards = getStudyCards();
 
   if (!studyCards.length) {
-    studyEl.innerHTML = '<div class="empty">Все слова уже в категории “Знаю” 🎉</div>';
+    studyEl.innerHTML = `${cardModeSwitch()}<div class="empty">Все слова уже в категории “Знаю” 🎉</div>`;
     setStatus("Все слова выучены");
     return;
   }
@@ -221,6 +248,7 @@ function renderStudyCard() {
   const newBadge = newCount ? `<span class="badge">Новых слов: +${newCount}</span>` : "";
 
   studyEl.innerHTML = `
+    ${cardModeSwitch()}
     <div class="study-progress">Карточка ${currentIndex + 1} из ${studyCards.length} ${newBadge}</div>
     <article class="flashcard" data-flashcard data-card-id="${card.id}">
       <p class="flashcard-side">${sideLabel}</p>
@@ -237,9 +265,38 @@ function flipCard() {
   renderStudyCard();
 }
 
+function cardListTemplate(card) {
+  const action = card.status === "known"
+    ? '<button class="learning" data-list-progress="learning">Повторять</button>'
+    : '<button class="known" data-list-progress="known">Знаю</button>';
+  return `
+    <article class="list-card" data-card-id="${card.id}">
+      <strong>${escapeHtml(card.term)}</strong>
+      <div>${escapeHtml(card.translation_ru)}</div>
+      ${card.example_sentence ? `<div>${escapeHtml(card.example_sentence)}</div>` : ""}
+      <span class="badge">${statusLabel(card.status)}</span>
+      <div class="actions">${action}</div>
+    </article>`;
+}
+
+function renderCardList() {
+  hideSections();
+  setActiveSection("cards");
+  studyEl.classList.remove("hidden");
+  const listHtml = allCards.length
+    ? allCards.map((card) => cardListTemplate(card)).join("")
+    : '<div class="empty">Слов пока нет.</div>';
+  studyEl.innerHTML = `${cardModeSwitch()}<div class="card-list">${listHtml}</div>`;
+  setStatus(`Слов: ${allCards.length}`);
+}
+
 function renderCurrentSection() {
   if (currentSection === "stats") {
     renderStats();
+    return;
+  }
+  if (currentCardMode === "list") {
+    renderCardList();
     return;
   }
   renderStudyCard();
@@ -251,6 +308,10 @@ async function updateProgress(cardId, progress) {
     body: JSON.stringify({ status: progress }),
   });
   allCards = allCards.map((card) => (card.id === Number(cardId) ? { ...card, status: result.status } : card));
+  if (currentCardMode === "list") {
+    renderCardList();
+    return;
+  }
   if (progress === "known") {
     studyCards = getStudyCards();
   } else {
@@ -280,6 +341,28 @@ async function loadCards() {
 }
 
 studyEl.addEventListener("click", async (event) => {
+  const modeButton = event.target.closest("button[data-card-mode]");
+  if (modeButton) {
+    currentCardMode = modeButton.dataset.cardMode;
+    currentIndex = 0;
+    isFlipped = false;
+    renderCurrentSection();
+    return;
+  }
+
+  const listButton = event.target.closest("button[data-list-progress]");
+  if (listButton) {
+    const cardEl = listButton.closest("[data-card-id]");
+    listButton.disabled = true;
+    try {
+      await updateProgress(cardEl.dataset.cardId, listButton.dataset.listProgress);
+    } catch (error) {
+      setStatus(`Ошибка: ${error.message}`);
+      listButton.disabled = false;
+    }
+    return;
+  }
+
   const progressButton = event.target.closest("button[data-study-progress]");
   if (progressButton) {
     const card = currentCard();
@@ -303,6 +386,7 @@ navButtons.forEach((button) => {
     currentIndex = 0;
     isFlipped = false;
     currentSection = button.dataset.section;
+    if (currentSection === "cards") currentCardMode = "study";
     renderCurrentSection();
   });
 });

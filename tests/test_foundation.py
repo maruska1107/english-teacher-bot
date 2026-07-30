@@ -131,7 +131,6 @@ def test_student_cards_webapp_page_is_available():
     assert 'data-section="unlearned"' not in response.text
     assert 'data-section="all"' not in response.text
     assert "Обучение" not in response.text
-    assert "Новое" not in response.text
     assert "Все карточки" not in response.text
     assert "Повторяйте слова после уроков" not in response.text
     assert "К изучению" not in response.text
@@ -145,6 +144,15 @@ def test_student_cards_webapp_page_is_available():
     assert "min-height: 340px" in response.text
     assert "overflow-y: auto" in response.text
     assert "Новых слов: +${newCount}" in response.text
+    assert 'data-card-mode="study"' in response.text
+    assert 'data-card-mode="list"' in response.text
+    assert "Учить" in response.text
+    assert "Список" in response.text
+    assert "renderCardList" in response.text
+    assert "statusLabel" in response.text
+    assert "Повторять" in response.text
+    assert "Новое" in response.text
+    assert "Учу" in response.text
     assert "Новые от преподавателя" not in response.text
     assert "Уже в изучении" not in response.text
     assert "Учить эти слова" not in response.text

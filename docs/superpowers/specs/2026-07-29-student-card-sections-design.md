@@ -17,9 +17,16 @@ The student WebApp `/student/cards` has two top-level buttons:
 
 ## Section: Карточки
 
-This is the main study mode.
+This is the main card area. It has an internal switch:
 
-It shows only the flip-card learning flow:
+```text
+Учить
+Список
+```
+
+### Mode: Учить
+
+This mode shows the flip-card learning flow:
 
 1. English word/phrase first.
 2. Tap card to reveal Russian translation.
@@ -28,7 +35,7 @@ It shows only the flip-card learning flow:
    - `Ещё учу`
    - `Знаю`
 
-The study section must not show progress summary blocks or a separate full-list tab above the card. It may show only the card position, for example `Карточка 1 из 12`.
+The study mode must not show progress summary blocks. It may show only the card position, for example `Карточка 1 из 12`.
 
 If there are cards with status `new`, the card position line shows a compact badge:
 
@@ -40,6 +47,22 @@ Study cards include every card whose student progress status is not `known`:
 
 - `new`
 - `learning`
+
+### Mode: Список
+
+This mode shows all published cards.
+
+Each card shows:
+
+- English word/phrase;
+- Russian translation;
+- optional example;
+- status label in Russian: `Новое`, `Учу`, or `Знаю`.
+
+Actions:
+
+- if the card status is `known`, show `Повторять`; clicking it returns the card to `learning`;
+- otherwise show `Знаю`; clicking it marks the card as `known`.
 
 There is no separate top-level `Новое`, `Неизученное`, `Обучение`, `Все`, or `Все карточки` section.
 
@@ -75,7 +98,13 @@ Use simple Russian:
 
 - `Карточки`
 - `Статистика`
+- `Учить`
+- `Список`
 - `Новых слов: +N`
+- `Новое`
+- `Учу`
+- `Знаю`
+- `Повторять`
 - `Мой прогресс`
 
 Do not use technical wording like `progress`, `status`, or `dataset` in visible UI.
@@ -86,7 +115,14 @@ Page-level tests should verify that `/student/cards` contains:
 
 - `Карточки`
 - `Статистика`
+- `data-card-mode="study"`
+- `data-card-mode="list"`
+- `Учить`
+- `Список`
 - `Новых слов: +${newCount}`
+- `statusLabel`
+- `Повторять`
+- `renderCardList`
 - `renderStats`
 - no top-level `summary-grid` block before the study section
 - no `data-section="unlearned"`
