@@ -4,24 +4,22 @@ Date: 2026-07-29
 
 ## Goal
 
-Make the student card WebApp cleaner by separating study, unlearned cards, statistics, and the full card list into distinct sections.
+Make the student card WebApp cleaner by reducing the top-level navigation to the two real student tasks: studying cards and checking progress.
 
 ## User-facing Sections
 
-The student WebApp `/student/cards` has four top-level buttons:
+The student WebApp `/student/cards` has two top-level buttons:
 
 ```text
-Обучение
-Новое
+Карточки
 Статистика
-Все
 ```
 
-## Section: Обучение
+## Section: Карточки
 
 This is the main study mode.
 
-It must show only the flip-card learning flow:
+It shows only the flip-card learning flow:
 
 1. English word/phrase first.
 2. Tap card to reveal Russian translation.
@@ -30,38 +28,24 @@ It must show only the flip-card learning flow:
    - `Ещё учу`
    - `Знаю`
 
-The study section must not show progress summary blocks or new-card summary blocks above the card.
-It may show only the card position, for example `Карточка 1 из 12`.
-It must not show a separate `К изучению` status line.
+The study section must not show progress summary blocks or a separate full-list tab above the card. It may show only the card position, for example `Карточка 1 из 12`.
+
+If there are cards with status `new`, the card position line shows a compact badge:
+
+```text
++N новых слов
+```
 
 Study cards include every card whose student progress status is not `known`:
 
 - `new`
 - `learning`
 
-## Section: Новое
-
-This section explains what remains to learn.
-
-It shows one group:
-
-```text
-Новые от преподавателя
-```
-
-Cards with status `new`.
-
-The section has a button:
-
-```text
-Учить эти слова
-```
-
-This button does not create a separate set and does not change card status by itself. It switches the WebApp back to the `Обучение` section, where all unlearned cards are already included.
+There is no separate top-level `Новое`, `Неизученное`, `Обучение`, `Все`, or `Все карточки` section.
 
 ## Section: Статистика
 
-This section contains the existing progress summary previously shown at the top of the WebApp:
+This section contains the progress summary:
 
 ```text
 Мой прогресс
@@ -74,22 +58,6 @@ This section contains the existing progress summary previously shown at the top 
 ```
 
 No additional backend endpoint is needed. The frontend calculates these values from `/api/student/cards`.
-
-## Section: Все
-
-This section keeps the full list of published cards.
-
-For each card, show:
-
-- English word/phrase;
-- Russian translation;
-- optional example;
-- current status.
-
-Actions:
-
-- If status is `known`, show `Учить` to return it to `learning`.
-- Otherwise show `Знаю` to mark it known.
 
 ## Data Model
 
@@ -105,12 +73,9 @@ The existing `/api/student/cards` endpoint already returns published cards and s
 
 Use simple Russian:
 
-- `Обучение`
-- `Новое`
+- `Карточки`
 - `Статистика`
-- `Все`
-- `Новые от преподавателя`
-- `Учить эти слова`
+- `+N новых слов`
 - `Мой прогресс`
 
 Do not use technical wording like `progress`, `status`, or `dataset` in visible UI.
@@ -119,15 +84,16 @@ Do not use technical wording like `progress`, `status`, or `dataset` in visible 
 
 Page-level tests should verify that `/student/cards` contains:
 
-- `Обучение`
-- `Новое`
+- `Карточки`
 - `Статистика`
-- `Все`
-- `Новые от преподавателя`
-- `Учить эти слова`
+- `+${newCount} новых слов`
 - `renderStats`
-- `renderUnlearned`
 - no top-level `summary-grid` block before the study section
+- no `data-section="unlearned"`
+- no `data-section="all"`
+- no `Обучение`
+- no `Новое`
+- no `Все карточки`
 
 Existing student API tests remain unchanged.
 

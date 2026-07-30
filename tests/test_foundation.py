@@ -124,10 +124,15 @@ def test_student_cards_webapp_page_is_available():
     assert "Telegram.WebApp" in response.text
     assert "x-telegram-init-data" in response.text
     assert "/api/student/cards" in response.text
-    assert "Обучение" in response.text
-    assert "Новое" in response.text
+    assert "Карточки" in response.text
     assert "Статистика" in response.text
-    assert "Все" in response.text
+    assert 'data-section="cards"' in response.text
+    assert 'data-section="stats"' in response.text
+    assert 'data-section="unlearned"' not in response.text
+    assert 'data-section="all"' not in response.text
+    assert "Обучение" not in response.text
+    assert "Новое" not in response.text
+    assert "Все карточки" not in response.text
     assert "Повторяйте слова после уроков" not in response.text
     assert "К изучению" not in response.text
     assert "Нажмите, чтобы перевернуть" in response.text
@@ -137,13 +142,13 @@ def test_student_cards_webapp_page_is_available():
     assert "Не знаю" in response.text
     assert "Ещё учу" in response.text
     assert "Знаю" in response.text
-    assert "data-list-progress" in response.text
     assert "min-height: 340px" in response.text
     assert "overflow-y: auto" in response.text
-    assert "Новые от преподавателя" in response.text
+    assert "+${newCount} новых слов" in response.text
+    assert "Новые от преподавателя" not in response.text
     assert "Уже в изучении" not in response.text
-    assert "Учить эти слова" in response.text
-    assert "renderUnlearned" in response.text
+    assert "Учить эти слова" not in response.text
+    assert "renderUnlearned" not in response.text
     assert "renderStats" in response.text
     assert "Мой прогресс" in response.text
     assert "knownPercent" in response.text

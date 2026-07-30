@@ -58,17 +58,9 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
 .flashcard-extra { margin: 0; font-size: 17px; line-height: 1.4; color: var(--tg-theme-hint-color, #4b5563); }
 .reveal-hint { margin: 0; font-size: 14px; color: var(--tg-theme-hint-color, #6b7280); }
 .card-list { margin-top: 18px; }
-.list-card {
-  margin: 10px 0;
-  padding: 14px;
-  border: 1px solid var(--tg-theme-section_separator_color, #e5e7eb);
-  border-radius: 16px;
-  background: var(--tg-theme-secondary-bg-color, #ffffff);
-}
-.list-card strong { display: block; font-size: 18px; margin-bottom: 4px; }
 .badge {
   display: inline-block;
-  margin-top: 8px;
+  margin-left: 8px;
   padding: 4px 8px;
   border-radius: 999px;
   background: #eef2ff;
@@ -99,16 +91,14 @@ if (tg) {
 const initData = tg?.initData || "";
 const statusEl = document.getElementById("status");
 const studyEl = document.getElementById("study");
-const unlearnedEl = document.getElementById("unlearned");
 const statsEl = document.getElementById("stats");
-const listEl = document.getElementById("cards");
 const navButtons = Array.from(document.querySelectorAll("button[data-section]"));
 
 let allCards = [];
 let studyCards = [];
 let currentIndex = 0;
 let isFlipped = false;
-let currentSection = "study";
+let currentSection = "cards";
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -159,9 +149,7 @@ function countByStatus(status) {
 
 function hideSections() {
   studyEl.classList.add("hidden");
-  unlearnedEl.classList.add("hidden");
   statsEl.classList.add("hidden");
-  listEl.classList.add("hidden");
 }
 
 function setActiveSection(section) {
@@ -201,13 +189,13 @@ function renderStats() {
 
 function renderStudyCard() {
   hideSections();
-  setActiveSection("study");
+  setActiveSection("cards");
   studyEl.classList.remove("hidden");
   studyCards = getStudyCards();
 
   if (!studyCards.length) {
-    studyEl.innerHTML = '<div class="empty">Все карточки уже в категории “Знаю” 🎉</div>';
-    setStatus("Все карточки выучены");
+    studyEl.innerHTML = '<div class="empty">Все слова уже в категории “Знаю” 🎉</div>';
+    setStatus("Все слова выучены");
     return;
   }
 
@@ -229,9 +217,11 @@ function renderStudyCard() {
     : "";
 
   const revealHint = isFlipped ? "Выберите, насколько хорошо помните слово" : "Сначала вспоминаем перевод сами";
+  const newCount = countByStatus("new");
+  const newBadge = newCount ? `<span class="badge">+${newCount} новых слов</span>` : "";
 
   studyEl.innerHTML = `
-    <div class="study-progress">Карточка ${currentIndex + 1} из ${studyCards.length}</div>
+    <div class="study-progress">Карточка ${currentIndex + 1} из ${studyCards.length} ${newBadge}</div>
     <article class="flashcard" data-flashcard data-card-id="${card.id}">
       <p class="flashcard-side">${sideLabel}</p>
       <p class="flashcard-main">${escapeHtml(mainText)}</p>
@@ -247,84 +237,20 @@ function flipCard() {
   renderStudyCard();
 }
 
-function listCardTemplate(card, listAction = true) {
-  const action = card.status === "known"
-    ? '<button class="learning" data-list-progress="learning">Учить</button>'
-    : '<button class="known" data-list-progress="known">Знаю</button>';
-  return `
-    <article class="list-card" data-card-id="${card.id}">
-      <strong>${escapeHtml(card.term)}</strong>
-      <div>${escapeHtml(card.translation_ru)}</div>
-      ${card.example_sentence ? `<div>${escapeHtml(card.example_sentence)}</div>` : ""}
-      <span class="badge">${escapeHtml(card.status)}</span>
-      ${listAction ? `<div class="actions">${action}</div>` : ""}
-    </article>`;
-}
-
-function renderCardGroup(title, cards) {
-  const content = cards.length
-    ? cards.map((card) => listCardTemplate(card, false)).join("")
-    : '<div class="empty">Пока пусто.</div>';
-  return `
-    <section class="section-card">
-      <h2>${title}</h2>
-      ${content}
-    </section>`;
-}
-
-function renderUnlearned() {
-  hideSections();
-  setActiveSection("unlearned");
-  unlearnedEl.classList.remove("hidden");
-
-  const newCards = cardsByStatus("new");
-  unlearnedEl.innerHTML = `
-    ${renderCardGroup("Новые от преподавателя", newCards)}
-    <div class="actions">
-      <button class="mode-button" data-action="study-unlearned">Учить эти слова</button>
-    </div>`;
-  setStatus(`Новых карточек: ${newCards.length}`);
-}
-
-function renderList() {
-  hideSections();
-  setActiveSection("all");
-  listEl.classList.remove("hidden");
-  if (!allCards.length) {
-    listEl.innerHTML = '<div class="empty">Опубликованных карточек пока нет.</div>';
-  } else {
-    listEl.innerHTML = allCards.map((card) => listCardTemplate(card)).join("");
-  }
-  setStatus(`Карточек: ${allCards.length}`);
-}
-
 function renderCurrentSection() {
-  if (currentSection === "unlearned") {
-    renderUnlearned();
-    return;
-  }
   if (currentSection === "stats") {
     renderStats();
-    return;
-  }
-  if (currentSection === "all") {
-    renderList();
     return;
   }
   renderStudyCard();
 }
 
-async function updateProgress(cardId, progress, after = "study") {
+async function updateProgress(cardId, progress) {
   const result = await api(`/api/student/cards/${cardId}/progress`, {
     method: "POST",
     body: JSON.stringify({ status: progress }),
   });
   allCards = allCards.map((card) => (card.id === Number(cardId) ? { ...card, status: result.status } : card));
-  if (after === "list") {
-    renderList();
-    setStatus(progress === "known" ? "Отмечено как известно" : "Возвращено в режим заучивания");
-    return;
-  }
   if (progress === "known") {
     studyCards = getStudyCards();
   } else {
@@ -372,28 +298,6 @@ studyEl.addEventListener("click", async (event) => {
   }
 });
 
-listEl.addEventListener("click", async (event) => {
-  const button = event.target.closest("button[data-list-progress]");
-  if (!button) return;
-  const cardEl = button.closest("[data-card-id]");
-  const cardId = cardEl.dataset.cardId;
-  button.disabled = true;
-  try {
-    await updateProgress(cardId, button.dataset.listProgress, "list");
-  } catch (error) {
-    setStatus(`Ошибка: ${error.message}`);
-    button.disabled = false;
-  }
-});
-
-unlearnedEl.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action='study-unlearned']");
-  if (!button) return;
-  currentIndex = 0;
-  isFlipped = false;
-  renderStudyCard();
-});
-
 navButtons.forEach((button) => {
   button.addEventListener("click", () => {
     currentIndex = 0;
@@ -421,16 +325,12 @@ def _page() -> str:
   <main class="page">
     <h1>Мои карточки</h1>
     <div class="toolbar" aria-label="Разделы карточек">
-      <button type="button" data-section="study" class="mode-button">Обучение</button>
-      <button type="button" data-section="unlearned" class="secondary-button">Новое</button>
+      <button type="button" data-section="cards" class="mode-button">Карточки</button>
       <button type="button" data-section="stats" class="secondary-button">Статистика</button>
-      <button type="button" data-section="all" class="secondary-button">Все</button>
     </div>
     <div id="status" class="status">Загрузка...</div>
     <section id="study" class="study-area"></section>
-    <section id="unlearned" class="card-list hidden"></section>
     <section id="stats" class="card-list hidden"></section>
-    <section id="cards" class="card-list hidden"></section>
   </main>
   <script>{SCRIPT}</script>
 </body>
