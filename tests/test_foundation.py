@@ -120,6 +120,18 @@ def test_teacher_cards_webapp_page_is_available():
     assert "border: 1px solid" in response.text
     assert "button:disabled" in response.text
     assert "archive" not in response.text
+    assert "#f7f5fa" in response.text
+    assert "#746e9f" in response.text
+    assert "#dcebe2" in response.text
+    assert "#f6e7e8" in response.text
+    assert "var(--tg-theme-" not in response.text
+    assert "--primary: #746e9f" in response.text
+    assert ".badge-new" in response.text
+    assert "border-color: var(--known-border)" in response.text
+    assert ".badge-muted" in response.text
+    assert "border-color: #d8d2e5" in response.text
+    assert "input:focus, textarea:focus" in response.text
+    assert "rgba(116, 110, 159, 0.14)" in response.text
 
     head_response = client.head("/teacher/cards")
     assert head_response.status_code == 200
