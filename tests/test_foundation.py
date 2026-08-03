@@ -169,10 +169,40 @@ def test_student_cards_webapp_page_is_available():
     assert response.text.count('data-study-progress="known"') == 1
     assert "height: 340px" in response.text
     assert "grid-template-rows: 24px 110px minmax(0, 1fr) 42px" in response.text
+    assert ".flashcard-with-image" in response.text
+    assert "height: 460px" in response.text
+    assert "grid-template-rows: 24px 110px 156px minmax(0, 1fr) 42px" in response.text
+    assert ".flashcard-image" in response.text
+    assert "width: 100%" in response.text
+    assert "height: 126px" in response.text
+    assert "object-fit: cover" in response.text
+    assert "border: 1px solid var(--border)" in response.text
+    assert "loading=\"lazy\"" in response.text
+    assert "referrerpolicy=\"no-referrer\"" in response.text
+    assert "handleImageError(img)" in response.text
+    assert "flashcard-image-failed" in response.text
+    assert "imageBlock(card)" in response.text
+    assert "const image = imageBlock(card);" in response.text
+    assert response.text.count("${image}") == 1
+    assert "attributionHtml(card)" in response.text
+    assert "const creator = escapeHtml(card.image_creator);" in response.text
+    assert 'escapeHtml(card.image_license || "лицензия")' in response.text
+    assert 'href="${escapeHtml(sourceUrl)}"' in response.text
+    assert 'href="${escapeHtml(licenseUrl)}"' in response.text
+    assert '<span class="flashcard-image-source">источник</span>' in response.text
+    assert '<span class="flashcard-image-license">${license}</span>' in response.text
+    assert "Фото: ${creator}" in response.text
+    assert "Фото: ${sourceLink} · ${licenseLink}" in response.text
+    assert "safeHttpsUrl" in response.text
+    assert 'class="flashcard-image-source"' in response.text
+    assert 'class="flashcard-image-license"' in response.text
+    assert "card.image_source_url" in response.text
+    assert "card.image_license_url" in response.text
+    assert "card.image_search_query" not in response.text
+    assert "api.openverse.org" not in response.text
     assert ".flashcard-main" in response.text
     assert "overflow-y: auto" in response.text
-    assert ".study-actions" in response.text
-    assert "min-height: 64px" in response.text
+    assert ".study-actions { height: 64px; min-height: 64px" in response.text
     assert '<div class="actions study-actions">${actions}</div>' in response.text
     assert "#f7f5fa" in response.text
     assert "#8b86b4" in response.text

@@ -74,6 +74,37 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   cursor: pointer;
   user-select: none;
 }
+.flashcard-with-image {
+  height: 460px;
+  grid-template-rows: 24px 110px 156px minmax(0, 1fr) 42px;
+}
+.flashcard-image-wrapper {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: left;
+}
+.flashcard-image {
+  display: block;
+  width: 100%;
+  height: 126px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--primary-soft);
+}
+.flashcard-image-attribution {
+  min-height: 22px;
+  padding: 4px 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.flashcard-image-attribution a { color: var(--primary-soft-text); }
+.flashcard-image-wrapper.flashcard-image-failed { visibility: hidden; }
+.flashcard-image-failed .flashcard-image { display: none; }
 .flashcard-side {
   display: flex;
   align-items: center;
@@ -138,7 +169,7 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   color: var(--badge-text);
 }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; justify-content: center; }
-.study-actions { min-height: 64px; margin-top: 0; align-items: center; }
+.study-actions { height: 64px; min-height: 64px; margin-top: 0; align-items: center; }
 button {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -189,7 +220,54 @@ function escapeHtml(value) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function safeHttpsUrl(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.href : "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function attributionHtml(card) {
+  const creator = escapeHtml(card.image_creator);
+  const sourceUrl = safeHttpsUrl(card.image_source_url);
+  const licenseUrl = safeHttpsUrl(card.image_license_url);
+  const license = escapeHtml(card.image_license || "лицензия");
+  const sourceLink = sourceUrl
+    ? `<a class="flashcard-image-source" href="${escapeHtml(sourceUrl)}" target="_blank"`
+      + ' rel="noopener noreferrer">источник</a>'
+    : '<span class="flashcard-image-source">источник</span>';
+  const licenseLink = licenseUrl
+    ? `<a class="flashcard-image-license" href="${escapeHtml(licenseUrl)}" target="_blank"`
+      + ` rel="noopener noreferrer">${license}</a>`
+    : `<span class="flashcard-image-license">${license}</span>`;
+  return creator
+    ? `Фото: ${creator} · ${sourceLink} · ${licenseLink}`
+    : `Фото: ${sourceLink} · ${licenseLink}`;
+}
+
+function imageBlock(card) {
+  const imageUrl = safeHttpsUrl(card.image_url);
+  if (!imageUrl) return "";
+  return `
+    <div class="flashcard-image-wrapper">
+      <img class="flashcard-image" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer"
+           onerror="handleImageError(this)">
+      <div class="flashcard-image-attribution">${attributionHtml(card)}</div>
+    </div>`;
+}
+
+function handleImageError(img) {
+  const wrapper = img?.closest(".flashcard-image-wrapper");
+  if (!wrapper) return;
+  wrapper.classList.add("flashcard-image-failed");
+  img.hidden = true;
 }
 
 async function api(path, options = {}) {
@@ -286,10 +364,12 @@ function renderStudyCard() {
     currentIndex = 0;
   }
   const card = currentCard();
+  const image = imageBlock(card);
+  const flashcardClass = image ? "flashcard flashcard-with-image" : "flashcard";
   const sideLabel = isFlipped ? "Перевод" : "English";
   const mainText = isFlipped ? card.translation_ru : card.term;
   const extra = isFlipped
-    ? [card.definition_en, card.example_sentence].filter(Boolean).join("<br>")
+    ? [card.definition_en, card.example_sentence].filter(Boolean).map(escapeHtml).join("<br>")
     : "Нажмите, чтобы перевернуть";
   const actions = isFlipped
     ? `<button class="learning" data-study-progress="learning">Ещё учу</button>
@@ -303,9 +383,10 @@ function renderStudyCard() {
   studyEl.innerHTML = `
     ${cardModeSwitch()}
     <div class="study-progress">Карточка ${currentIndex + 1} из ${studyCards.length} ${newBadge}</div>
-    <article class="flashcard" data-flashcard data-card-id="${card.id}">
+    <article class="${flashcardClass}" data-flashcard data-card-id="${card.id}">
       <p class="flashcard-side">${sideLabel}</p>
       <p class="flashcard-main">${escapeHtml(mainText)}</p>
+      ${image}
       <p class="flashcard-extra">${extra || " "}</p>
       <p class="reveal-hint">${revealHint}</p>
     </article>
