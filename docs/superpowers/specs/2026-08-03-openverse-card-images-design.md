@@ -91,7 +91,7 @@ Extend teacher and student card response objects with nullable image metadata.
 Add teacher-only draft endpoints:
 
 - `GET /api/teacher/cards/{card_id}/image-options?offset=N` returns up to three transient Openverse candidates and the next offset;
-- `PUT /api/teacher/cards/{card_id}/image` accepts one complete candidate metadata object returned by the options endpoint and persists it after validation;
+- `PUT /api/teacher/cards/{card_id}/image` accepts an Openverse `image_id`, fetches that result server-side, validates it, and persists its metadata;
 - `DELETE /api/teacher/cards/{card_id}/image` clears all image metadata.
 
 The server, not the browser, calls Openverse. Candidate URLs must be HTTPS and candidate licenses must be from the allowed Openverse set. Never accept arbitrary teacher-supplied URLs in this release.
