@@ -49,17 +49,17 @@ input, textarea {
 textarea { min-height: 68px; resize: vertical; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 button {
-  border: 0;
+  border: 1px solid var(--tg-theme-section_separator_color, #d1d5db);
   border-radius: 11px;
   padding: 10px 12px;
   font-weight: 700;
   cursor: pointer;
 }
-button:disabled { opacity: 0.55; cursor: wait; }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
 .primary { background: var(--tg-theme-button-color, #2563eb); color: var(--tg-theme-button-text-color, #ffffff); }
-.secondary { background: #eef2ff; color: #3730a3; }
-.danger { background: #fee2e2; color: #991b1b; }
-.ghost { background: #f3f4f6; color: #374151; }
+.secondary { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
+.danger { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.ghost { background: #f3f4f6; color: #374151; border-color: #d1d5db; }
 .empty { padding: 20px; border-radius: 14px; background: #ecfdf5; color: #065f46; }
 .error { padding: 14px; border-radius: 14px; background: #fef2f2; color: #991b1b; }
 .readonly-line { margin: 6px 0; color: var(--tg-theme-hint-color, #6b7280); }
@@ -220,20 +220,14 @@ function addWordPanel() {
     <section class="panel" id="add-word-panel">
       <h3>+ Добавить слово</h3>
       <p class="lead">Добавленное слово появится в конце списка новых карточек.</p>
-      <label>Слово / фраза</label>
-      <input name="new_term" placeholder="journey">
-      <label>Перевод</label>
-      <input name="new_translation_ru" placeholder="путешествие">
-      <label>Определение на английском</label>
-      <textarea name="new_definition_en"></textarea>
-      <label>Пример</label>
+      <label>Слово / фраза *</label>
+      <input name="new_term" placeholder="journey" data-required-manual-card>
+      <label>Перевод *</label>
+      <input name="new_translation_ru" placeholder="путешествие" data-required-manual-card>
+      <label>Пример (необязательно)</label>
       <textarea name="new_example_sentence"></textarea>
-      <label>Фраза из урока</label>
-      <textarea name="new_source_phrase"></textarea>
-      <label>Уровень</label>
-      <input name="new_level" placeholder="B1">
       <div class="actions">
-        <button type="button" class="secondary" data-action="create-card">Добавить в список</button>
+        <button type="button" class="secondary" data-action="create-card" disabled>Добавить в список</button>
         <button type="button" class="ghost" data-action="hide-add-form">Отмена</button>
       </div>
     </section>`;
@@ -260,11 +254,19 @@ function manualPayload() {
     learning_profile_id: selectedProfile.id,
     term: detailEl.querySelector('[name="new_term"]').value,
     translation_ru: detailEl.querySelector('[name="new_translation_ru"]').value,
-    definition_en: detailEl.querySelector('[name="new_definition_en"]').value,
+    definition_en: "",
     example_sentence: detailEl.querySelector('[name="new_example_sentence"]').value,
-    source_phrase: detailEl.querySelector('[name="new_source_phrase"]').value,
-    level: detailEl.querySelector('[name="new_level"]').value,
+    source_phrase: "",
+    level: "",
   };
+}
+
+function updateCreateCardButton() {
+  const button = detailEl.querySelector('button[data-action="create-card"]');
+  if (!button) return;
+  const term = detailEl.querySelector('[name="new_term"]')?.value.trim() || "";
+  const translation = detailEl.querySelector('[name="new_translation_ru"]')?.value.trim() || "";
+  button.disabled = !term || !translation;
 }
 
 function renderSelectedProfile() {
@@ -370,6 +372,12 @@ profilesEl.addEventListener("click", async (event) => {
   const profileButton = event.target.closest("[data-profile-id]");
   if (!profileButton) return;
   await openProfile(profileButton.dataset.profileId);
+});
+
+detailEl.addEventListener("input", (event) => {
+  if (event.target.matches("[data-required-manual-card]")) {
+    updateCreateCardButton();
+  }
 });
 
 detailEl.addEventListener("click", async (event) => {

@@ -107,6 +107,18 @@ def test_teacher_cards_webapp_page_is_available():
     assert response.text.index('id="profile-cards"') < response.text.index("${addWordHtml}")
     assert response.text.index("${addWordHtml}") < response.text.index('<div class="actions">${publishButton}</div>')
     assert "draftCards.push(createdCard)" in response.text
+    assert "Слово / фраза *" in response.text
+    assert "Перевод *" in response.text
+    assert "Пример (необязательно)" in response.text
+    assert "updateCreateCardButton" in response.text
+    assert 'data-action="create-card" disabled' in response.text
+    assert 'name="new_definition_en"' not in response.text
+    assert 'name="new_source_phrase"' not in response.text
+    assert 'name="new_level"' not in response.text
+    assert 'detailEl.addEventListener("input"' in response.text
+    assert "updateCreateCardButton();" in response.text
+    assert "border: 1px solid" in response.text
+    assert "button:disabled" in response.text
     assert "archive" not in response.text
 
     head_response = client.head("/teacher/cards")
