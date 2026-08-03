@@ -129,6 +129,43 @@ def test_teacher_can_list_draft_cards_for_profile():
     }
 
 
+def test_teacher_card_list_serializes_populated_image_metadata():
+    session = make_session()
+    _, profile, draft_card, _ = seed_teacher_profile_and_cards(session)
+    draft_card.image_url = "https://api.openverse.org/v1/images/openverse-1/thumb/"
+    draft_card.image_source_url = "https://example.org/source"
+    draft_card.image_creator = "Alice"
+    draft_card.image_license = "by"
+    draft_card.image_license_url = "https://creativecommons.org/licenses/by/4.0/"
+    draft_card.image_search_query = "journey travel"
+    session.commit()
+    client = make_client(session)
+
+    response = client.get(
+        f"/api/teacher/cards?profile_id={profile.id}&status=draft",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["cards"][0] == {
+        "id": draft_card.id,
+        "learning_profile_id": profile.id,
+        "term": "journey",
+        "translation_ru": "путешествие",
+        "definition_en": "An act of travelling.",
+        "example_sentence": "The journey was long.",
+        "source_phrase": "journey",
+        "level": "B1",
+        "status": "draft",
+        "image_url": "https://api.openverse.org/v1/images/openverse-1/thumb/",
+        "image_source_url": "https://example.org/source",
+        "image_creator": "Alice",
+        "image_license": "by",
+        "image_license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "image_search_query": "journey travel",
+    }
+
+
 def test_teacher_can_update_publish_and_archive_own_card():
     session = make_session()
     _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
