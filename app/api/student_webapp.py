@@ -4,74 +4,128 @@ from fastapi.responses import HTMLResponse
 router = APIRouter()
 
 STYLE = """
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+  --page-bg: #f7f5fa;
+  --surface: #ffffff;
+  --text: #39344a;
+  --muted: #686277;
+  --border: #e2deea;
+  --primary: #8b86b4;
+  --primary-border: #7a75a6;
+  --primary-soft: #ece9f2;
+  --primary-soft-text: #5c5870;
+  --learning-bg: #f0dfd8;
+  --learning-text: #75564b;
+  --learning-border: #e4ccc2;
+  --known-bg: #dcebe2;
+  --known-text: #3d644e;
+  --known-border: #c8ded1;
+  --badge-bg: #e2f0e8;
+  --badge-text: #466c56;
+  --error-bg: #f6e7e8;
+  --error-text: #7a4047;
+}
 * { box-sizing: border-box; }
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  background: var(--tg-theme-bg-color, #f7f8fb);
-  color: var(--tg-theme-text-color, #111827);
+  background: var(--page-bg);
+  color: var(--text);
 }
 .page { max-width: 680px; margin: 0 auto; padding: 18px 14px 34px; }
 h1 { margin: 4px 0 8px; font-size: 24px; }
-.lead { margin: 0 0 16px; color: var(--tg-theme-hint-color, #6b7280); }
-.status { margin: 12px 0; color: var(--tg-theme-hint-color, #6b7280); }
+.lead { margin: 0 0 16px; color: var(--muted); }
+.status { margin: 12px 0; color: var(--muted); }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
 .mode-button, .tab-active {
-  background: var(--tg-theme-button-color, #2563eb);
-  color: var(--tg-theme-button-text-color, #ffffff);
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary-border);
 }
-.secondary-button { background: #e5e7eb; color: #111827; }
+.secondary-button { background: var(--primary-soft); color: var(--primary-soft-text); border-color: var(--border); }
 .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
 .summary-card, .section-card {
   padding: 14px;
   border-radius: 18px;
-  background: var(--tg-theme-secondary-bg-color, #ffffff);
-  border: 1px solid var(--tg-theme-section_separator_color, #e5e7eb);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 .summary-card h2, .section-card h2 { margin: 0 0 8px; font-size: 17px; }
-.summary-line { margin: 4px 0; color: var(--tg-theme-hint-color, #4b5563); }
-.summary-value { font-weight: 900; color: var(--tg-theme-text-color, #111827); }
+.summary-line { margin: 4px 0; color: var(--muted); }
+.summary-value { font-weight: 900; color: var(--text); }
 @media (max-width: 460px) { .summary-grid { grid-template-columns: 1fr; } }
 .study-area { margin-top: 12px; }
-.study-progress { margin: 8px 0 14px; color: var(--tg-theme-hint-color, #6b7280); font-weight: 700; }
+.study-progress { margin: 8px 0 14px; color: var(--muted); font-weight: 700; }
 .flashcard {
-  min-height: 340px;
-  max-height: 340px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 12px;
-  overflow-y: auto;
-  margin: 14px 0;
-  padding: 28px 22px;
-  border: 1px solid var(--tg-theme-section_separator_color, #e5e7eb);
+  height: 340px;
+  display: grid;
+  grid-template-rows: 24px 110px minmax(0, 1fr) 42px;
+  align-items: stretch;
+  gap: 8px;
+  overflow: hidden;
+  margin: 14px 0 0;
+  padding: 24px 22px;
+  border: 1px solid var(--border);
   border-radius: 24px;
-  background: var(--tg-theme-secondary-bg-color, #ffffff);
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
+  background: var(--surface);
+  box-shadow: 0 12px 28px rgba(57, 52, 74, 0.08);
   text-align: center;
   cursor: pointer;
   user-select: none;
 }
-.flashcard-side { margin: 0; color: var(--tg-theme-hint-color, #6b7280); font-size: 14px; font-weight: 800; }
-.flashcard-main { margin: 0; font-size: 34px; line-height: 1.15; font-weight: 900; }
-.flashcard-extra { margin: 0; font-size: 17px; line-height: 1.4; color: var(--tg-theme-hint-color, #4b5563); }
-.reveal-hint { margin: 0; font-size: 14px; color: var(--tg-theme-hint-color, #6b7280); }
+.flashcard-side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+.flashcard-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  overflow-y: auto;
+  color: var(--text);
+  font-size: 34px;
+  line-height: 1.15;
+  font-weight: 900;
+}
+.flashcard-extra {
+  margin: 0;
+  overflow-y: auto;
+  align-self: stretch;
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.reveal-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
 .card-list { margin-top: 18px; }
 .card-mode-switch { display: flex; gap: 8px; margin: 12px 0; }
 .card-mode-switch button { flex: 1; padding: 10px 12px; border-radius: 999px; font-size: 14px; }
-.card-mode-tab-active { background: #dbeafe; color: #1d4ed8; }
-.card-mode-tab { background: #f3f4f6; color: #374151; }
+.card-mode-tab-active { background: #e7e3f0; color: #5f5980; border-color: #d8d2e5; }
+.card-mode-tab { background: #f0edf4; color: #625d70; border-color: var(--border); }
 .filter-switch { justify-content: flex-start; margin: 8px 0 6px; }
 .filter-switch button { flex: 0 0 auto; padding: 8px 12px; border-radius: 999px; font-size: 13px; }
-.filter-chip-active { background: #dcfce7; color: #166534; }
-.filter-chip { background: #f3f4f6; color: #4b5563; }
+.filter-chip-active { background: var(--badge-bg); color: var(--badge-text); border-color: var(--known-border); }
+.filter-chip { background: #f0edf4; color: #625d70; border-color: var(--border); }
 .list-card {
   margin: 10px 0;
   padding: 14px;
-  border: 1px solid var(--tg-theme-section_separator_color, #e5e7eb);
+  border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--tg-theme-secondary-bg-color, #ffffff);
+  background: var(--surface);
+  color: var(--text);
 }
 .list-card strong { display: block; font-size: 18px; margin-bottom: 4px; }
 .list-card .actions { justify-content: flex-end; }
@@ -80,22 +134,22 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   margin-left: 8px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: #eef2ff;
-  color: #3730a3;
+  background: var(--badge-bg);
+  color: var(--badge-text);
 }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; justify-content: center; }
+.study-actions { min-height: 64px; margin-top: 0; align-items: center; }
 button {
-  border: 0;
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px 14px;
   font-weight: 800;
   cursor: pointer;
 }
-.unknown { background: #fee2e2; color: #991b1b; }
-.learning { background: #fef3c7; color: #92400e; }
-.known { background: var(--tg-theme-button-color, #16a34a); color: var(--tg-theme-button-text-color, #ffffff); }
-.empty { padding: 20px; border-radius: 14px; background: #ecfdf5; color: #065f46; }
-.error { padding: 14px; border-radius: 14px; background: #fef2f2; color: #991b1b; }
+.learning { background: var(--learning-bg); color: var(--learning-text); border-color: var(--learning-border); }
+.known { background: var(--known-bg); color: var(--known-text); border-color: var(--known-border); }
+.empty { padding: 20px; border-radius: 14px; background: var(--badge-bg); color: var(--badge-text); }
+.error { padding: 14px; border-radius: 14px; background: var(--error-bg); color: var(--error-text); }
 .hidden { display: none; }
 """
 
@@ -238,11 +292,8 @@ function renderStudyCard() {
     ? [card.definition_en, card.example_sentence].filter(Boolean).join("<br>")
     : "Нажмите, чтобы перевернуть";
   const actions = isFlipped
-    ? `<div class="actions">
-        <button class="unknown" data-study-progress="learning">Не знаю</button>
-        <button class="learning" data-study-progress="learning">Ещё учу</button>
-        <button class="known" data-study-progress="known">Знаю</button>
-      </div>`
+    ? `<button class="learning" data-study-progress="learning">Ещё учу</button>
+       <button class="known" data-study-progress="known">Знаю</button>`
     : "";
 
   const revealHint = isFlipped ? "Выберите, насколько хорошо помните слово" : "Сначала вспоминаем перевод сами";
@@ -258,7 +309,7 @@ function renderStudyCard() {
       <p class="flashcard-extra">${extra || " "}</p>
       <p class="reveal-hint">${revealHint}</p>
     </article>
-    ${actions}`;
+    <div class="actions study-actions">${actions}</div>`;
   setStatus("");
 }
 

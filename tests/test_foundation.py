@@ -150,11 +150,23 @@ def test_student_cards_webapp_page_is_available():
     assert "studyCards" in response.text
     assert 'card.status !== "known"' in response.text
     assert "flipCard" in response.text
-    assert "Не знаю" in response.text
+    assert "Не знаю" not in response.text
     assert "Ещё учу" in response.text
     assert "Знаю" in response.text
-    assert "min-height: 340px" in response.text
+    assert response.text.count('data-study-progress="learning"') == 1
+    assert response.text.count('data-study-progress="known"') == 1
+    assert "height: 340px" in response.text
+    assert "grid-template-rows: 24px 110px minmax(0, 1fr) 42px" in response.text
+    assert ".flashcard-main" in response.text
     assert "overflow-y: auto" in response.text
+    assert ".study-actions" in response.text
+    assert "min-height: 64px" in response.text
+    assert '<div class="actions study-actions">${actions}</div>' in response.text
+    assert "#f7f5fa" in response.text
+    assert "#8b86b4" in response.text
+    assert "#f0dfd8" in response.text
+    assert "#dcebe2" in response.text
+    assert "var(--tg-theme-" not in response.text
     assert "Новых слов: +${newCount}" in response.text
     assert 'data-card-mode="study"' in response.text
     assert 'data-card-mode="list"' in response.text
@@ -169,7 +181,7 @@ def test_student_cards_webapp_page_is_available():
     assert "filter-switch" in response.text
     assert ".list-card .actions" in response.text
     assert "justify-content: flex-end" in response.text
-    assert "#dbeafe" in response.text
+    assert "#dbeafe" not in response.text
     assert "Повторять" in response.text
     assert "Новое" not in response.text
     assert "statusLabel" not in response.text
