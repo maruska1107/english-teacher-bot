@@ -181,23 +181,27 @@ def test_student_cards_webapp_page_is_available():
     assert "referrerpolicy=\"no-referrer\"" in response.text
     assert "handleImageError(img)" in response.text
     assert "flashcard-image-failed" in response.text
+    assert "flashcard-image-placeholder" in response.text
+    assert "Изображение недоступно" in response.text
     assert "imageBlock(card)" in response.text
     assert "const image = imageBlock(card);" in response.text
     assert response.text.count("${image}") == 1
     assert "attributionHtml(card)" in response.text
-    assert "const creator = escapeHtml(card.image_creator);" in response.text
-    assert 'escapeHtml(card.image_license || "лицензия")' in response.text
+    assert "Атрибуция недоступна." in response.text
     assert 'href="${escapeHtml(sourceUrl)}"' in response.text
     assert 'href="${escapeHtml(licenseUrl)}"' in response.text
-    assert '<span class="flashcard-image-source">источник</span>' in response.text
-    assert '<span class="flashcard-image-license">${license}</span>' in response.text
-    assert "Фото: ${creator}" in response.text
-    assert "Фото: ${sourceLink} · ${licenseLink}" in response.text
+    assert '<span class="flashcard-image-source">источник</span>' not in response.text
     assert "safeHttpsUrl" in response.text
     assert 'class="flashcard-image-source"' in response.text
     assert 'class="flashcard-image-license"' in response.text
-    assert "card.image_source_url" in response.text
-    assert "card.image_license_url" in response.text
+    assert "card?.image_source_url" in response.text
+    assert "card?.image_license_url" in response.text
+    assert "grid-template-rows: 126px 30px" in response.text
+    assert "overflow-wrap: anywhere" in response.text
+    assert "white-space: normal" in response.text
+    assert 'role="button" tabindex="0"' in response.text
+    assert 'aria-pressed="${isFlipped}"' in response.text
+    assert "handleFlashcardActivation(event, flipCard)" in response.text
     assert "card.image_search_query" not in response.text
     assert "api.openverse.org" not in response.text
     assert ".flashcard-main" in response.text

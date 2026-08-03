@@ -1,7 +1,11 @@
+from pathlib import Path
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 router = APIRouter()
+
+CARD_UI_SCRIPT = (Path(__file__).resolve().parents[1] / "static" / "student_card_ui.js").read_text(encoding="utf-8")
 
 STYLE = """
 :root {
@@ -79,6 +83,9 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   grid-template-rows: 24px 110px 156px minmax(0, 1fr) 42px;
 }
 .flashcard-image-wrapper {
+  display: grid;
+  grid-template-rows: 126px 30px;
+  height: 156px;
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
@@ -86,6 +93,7 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   line-height: 1.35;
   text-align: left;
 }
+.flashcard-image-region { position: relative; height: 126px; }
 .flashcard-image {
   display: block;
   width: 100%;
@@ -96,15 +104,31 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   background: var(--primary-soft);
 }
 .flashcard-image-attribution {
-  min-height: 22px;
+  height: 30px;
   padding: 4px 2px 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  user-select: text;
 }
 .flashcard-image-attribution a { color: var(--primary-soft-text); }
-.flashcard-image-wrapper.flashcard-image-failed { visibility: hidden; }
-.flashcard-image-failed .flashcard-image { display: none; }
+.flashcard-image-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary-soft-text);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+.flashcard-image-placeholder[hidden], .flashcard-image-failed .flashcard-image { display: none; }
+.flashcard:focus-visible { outline: 3px solid var(--primary-border); outline-offset: 3px; }
 .flashcard-side {
   display: flex;
   align-items: center;
@@ -213,61 +237,6 @@ function headers() {
     "content-type": "application/json",
     "x-telegram-init-data": initData,
   };
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function safeHttpsUrl(value) {
-  if (!value) return "";
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" ? url.href : "";
-  } catch (_error) {
-    return "";
-  }
-}
-
-function attributionHtml(card) {
-  const creator = escapeHtml(card.image_creator);
-  const sourceUrl = safeHttpsUrl(card.image_source_url);
-  const licenseUrl = safeHttpsUrl(card.image_license_url);
-  const license = escapeHtml(card.image_license || "лицензия");
-  const sourceLink = sourceUrl
-    ? `<a class="flashcard-image-source" href="${escapeHtml(sourceUrl)}" target="_blank"`
-      + ' rel="noopener noreferrer">источник</a>'
-    : '<span class="flashcard-image-source">источник</span>';
-  const licenseLink = licenseUrl
-    ? `<a class="flashcard-image-license" href="${escapeHtml(licenseUrl)}" target="_blank"`
-      + ` rel="noopener noreferrer">${license}</a>`
-    : `<span class="flashcard-image-license">${license}</span>`;
-  return creator
-    ? `Фото: ${creator} · ${sourceLink} · ${licenseLink}`
-    : `Фото: ${sourceLink} · ${licenseLink}`;
-}
-
-function imageBlock(card) {
-  const imageUrl = safeHttpsUrl(card.image_url);
-  if (!imageUrl) return "";
-  return `
-    <div class="flashcard-image-wrapper">
-      <img class="flashcard-image" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer"
-           onerror="handleImageError(this)">
-      <div class="flashcard-image-attribution">${attributionHtml(card)}</div>
-    </div>`;
-}
-
-function handleImageError(img) {
-  const wrapper = img?.closest(".flashcard-image-wrapper");
-  if (!wrapper) return;
-  wrapper.classList.add("flashcard-image-failed");
-  img.hidden = true;
 }
 
 async function api(path, options = {}) {
@@ -383,7 +352,8 @@ function renderStudyCard() {
   studyEl.innerHTML = `
     ${cardModeSwitch()}
     <div class="study-progress">Карточка ${currentIndex + 1} из ${studyCards.length} ${newBadge}</div>
-    <article class="${flashcardClass}" data-flashcard data-card-id="${card.id}">
+    <article class="${flashcardClass}" data-flashcard data-card-id="${card.id}" role="button" tabindex="0"
+             aria-pressed="${isFlipped}" aria-label="Перевернуть карточку">
       <p class="flashcard-side">${sideLabel}</p>
       <p class="flashcard-main">${escapeHtml(mainText)}</p>
       ${image}
@@ -538,9 +508,11 @@ studyEl.addEventListener("click", async (event) => {
     }
     return;
   }
-  if (event.target.closest("[data-flashcard]")) {
-    flipCard();
-  }
+  handleFlashcardActivation(event, flipCard);
+});
+
+studyEl.addEventListener("keydown", (event) => {
+  handleFlashcardActivation(event, flipCard);
 });
 
 navButtons.forEach((button) => {
@@ -578,6 +550,7 @@ def _page() -> str:
     <section id="study" class="study-area"></section>
     <section id="stats" class="card-list hidden"></section>
   </main>
+  <script>{CARD_UI_SCRIPT}</script>
   <script>{SCRIPT}</script>
 </body>
 </html>"""
