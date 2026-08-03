@@ -23,6 +23,14 @@ command -v python3 >/dev/null 2>&1 \
 command -v docker >/dev/null 2>&1 || fail "Docker is required to run the canonical Python and Ruff checks."
 docker info >/dev/null 2>&1 || fail "Docker is installed, but the daemon is unavailable."
 
+readonly dockerignore="$repo_root/.dockerignore"
+[[ -f "$dockerignore" ]] || fail "Docker build context protection is missing: $dockerignore"
+required_dockerignore_patterns=(.env '.env.*' .git .worktrees .venv venv backups)
+for pattern in "${required_dockerignore_patterns[@]}"; do
+  grep -Fqx -- "$pattern" "$dockerignore" \
+    || fail ".dockerignore must exclude '$pattern' before Docker receives the build context."
+done
+
 shopt -s nullglob
 js_tests=("$repo_root"/tests/js/*.test.js)
 (( ${#js_tests[@]} > 0 )) || fail "no JavaScript tests matched tests/js/*.test.js; refusing to skip the UI security suite."
