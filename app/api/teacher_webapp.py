@@ -614,6 +614,10 @@ async function toggleImageOptions(cardId) {
     renderSelectedProfile();
     return;
   }
+  if (state?.error) {
+    await loadImageOptions(cardId);
+    return;
+  }
   if (state?.options.length) {
     state.open = true;
     imageOptionsState.set(cardId, state);

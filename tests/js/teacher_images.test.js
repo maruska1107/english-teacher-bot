@@ -13,9 +13,12 @@ const browserSource = pythonSource.slice(scriptStart, scriptEnd);
 
 function extractFunction(name) {
   const marker = `function ${name}(`;
-  const start = browserSource.indexOf(marker);
-  assert.notEqual(start, -1, `${name} must exist`);
-  const bodyStart = browserSource.indexOf('{', start);
+  const markerStart = browserSource.indexOf(marker);
+  assert.notEqual(markerStart, -1, `${name} must exist`);
+  const start = browserSource.slice(Math.max(0, markerStart - 6), markerStart) === 'async '
+    ? markerStart - 6
+    : markerStart;
+  const bodyStart = browserSource.indexOf('{', markerStart);
   let depth = 0;
   let quote = '';
   let escaped = false;
@@ -97,6 +100,57 @@ test('retry loading state clears an old error and leaves controls recoverable', 
   assert.equal(state.error, '');
   assert.equal(state.empty, false);
   assert.equal(state.loading, true);
+});
+
+test('closing and reopening retries offset zero after pagination or selection errors', async () => {
+  const context = contextWith(
+    [
+      'imageOptionsRequestOffset',
+      'imageOptionsPage',
+      'imageOptionsLoadingState',
+      'beginImageOptionsRequest',
+      'isCurrentImageOptionsRequest',
+      'loadImageOptions',
+      'toggleImageOptions',
+    ],
+    `const imageOptionsState = new Map();
+    let imageOptionsRequestGeneration = 0;
+    const requests = [];
+    function syncDraftEditsFromDom() {}
+    function renderSelectedProfile() {}
+    async function api(path) {
+      const state = imageOptionsState.get(7);
+      requests.push({ path, error: state.error, loading: state.loading });
+      return { options: [], next_offset: 3 };
+    }`,
+  );
+  const result = await evaluate(context, `(async () => {
+    const outcomes = [];
+    for (const error of [
+      'Не удалось загрузить картинки. Попробуйте ещё раз.',
+      'Не удалось выбрать картинку. Попробуйте ещё раз.',
+    ]) {
+      imageOptionsState.set(7, {
+        open: true,
+        options: [{ image_id: 'cached' }],
+        nextOffset: 6,
+        error,
+        loading: false,
+      });
+      await toggleImageOptions(7);
+      await toggleImageOptions(7);
+      outcomes.push({ state: imageOptionsState.get(7), request: requests.at(-1) });
+    }
+    return { outcomes, requestCount: requests.length };
+  })()`);
+
+  assert.equal(result.requestCount, 2);
+  for (const outcome of result.outcomes) {
+    assert.equal(outcome.request.path, '/api/teacher/cards/7/image-options?offset=0');
+    assert.equal(outcome.request.error, '');
+    assert.equal(outcome.request.loading, true);
+    assert.equal(outcome.state.error, '');
+  }
 });
 
 test('broken selected image hides its complete region including attribution', () => {
