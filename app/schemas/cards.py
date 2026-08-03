@@ -1,15 +1,42 @@
-from typing import Literal
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field
+from pydantic import AnyUrl, BaseModel, Field, StringConstraints, TypeAdapter, ValidationError, field_validator
+
+ImageId = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+HttpsUrl = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)]
+Creator = Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]
+_url_adapter = TypeAdapter(AnyUrl)
 
 
 class CardImageCandidate(BaseModel):
-    image_id: str
-    image_url: str
-    source_url: str
-    creator: str | None = None
+    image_id: ImageId
+    image_url: HttpsUrl
+    source_url: HttpsUrl
+    creator: Creator | None = None
     license: Literal["cc0", "pdm", "by", "by-sa"]
-    license_url: str | None = None
+    license_url: HttpsUrl | None = None
+
+    @field_validator("image_url", "source_url", "license_url")
+    @classmethod
+    def validate_https_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            parsed_url = _url_adapter.validate_python(value)
+        except ValidationError as exc:
+            raise ValueError("must be a valid absolute HTTPS URL") from exc
+        if parsed_url.scheme != "https" or not parsed_url.host or not urlsplit(value).netloc:
+            raise ValueError("must be a valid absolute HTTPS URL")
+        return value
+
+    @field_validator("creator", mode="before")
+    @classmethod
+    def normalize_creator(cls, value: object) -> object:
+        if isinstance(value, str):
+            normalized = value.strip()
+            return normalized or None
+        return value
 
 
 class CardImageOptionsResponse(BaseModel):
@@ -18,7 +45,7 @@ class CardImageOptionsResponse(BaseModel):
 
 
 class CardImageSelection(BaseModel):
-    image_id: str = Field(min_length=1, max_length=100)
+    image_id: ImageId
 
 
 class VocabularyCardRead(BaseModel):
