@@ -15,6 +15,7 @@ from app.models import (
     ZoomMeetingSubscription,
     ZoomToken,
 )
+from app.schemas.cards import CardImageCandidate
 from app.telegram.commands import TelegramCommandService
 from app.telegram.invites import hash_invite_token
 from app.telegram.messages import START_NOTICE_TEXT
@@ -30,6 +31,28 @@ class FakeTelegramGateway:
 
     async def send_webapp_button(self, chat_id: int, text: str, button_text: str, webapp_url: str) -> None:
         self.webapp_buttons.append((chat_id, text, button_text, webapp_url))
+
+
+class FakeSeedImageClient:
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    async def search(self, query: str, offset: int = 0, limit: int = 3) -> list[CardImageCandidate]:
+        self.queries.append(query)
+        image_number = len(self.queries)
+        return [
+            CardImageCandidate(
+                image_id=f"seed-{image_number}",
+                image_url=f"https://images.example.com/{image_number}.jpg",
+                source_url=f"https://images.example.com/source/{image_number}",
+                creator="Seed photographer",
+                license="by",
+                license_url="https://creativecommons.org/licenses/by/4.0/",
+            )
+        ]
+
+    async def get(self, image_id: str) -> CardImageCandidate | None:
+        return None
 
 
 def make_session() -> Session:
@@ -48,6 +71,7 @@ def make_settings(**overrides) -> Settings:
         "zoom_client_secret": "zoom-client-secret",
         "zoom_redirect_uri": "https://bot.example.com/api/zoom/oauth/callback",
         "telegram_bot_username": "EnglishTutorHelperAIBot",
+        "openverse_images_enabled": False,
     }
     defaults.update(overrides)
     return Settings(**defaults)
@@ -184,10 +208,12 @@ async def test_start_rejects_non_allowed_teacher_without_creating_user():
 async def test_dev_seed_data_admin_command_recreates_test_profile_lessons_and_cards():
     session = make_session()
     gateway = FakeTelegramGateway()
+    image_client = FakeSeedImageClient()
     service = TelegramCommandService(
         session=session,
         gateway=gateway,
-        settings=make_settings(telegram_admin_id=956230172),
+        settings=make_settings(telegram_admin_id=956230172, openverse_images_enabled=True),
+        image_client=image_client,
     )
 
     await service.handle_dev_seed_data(telegram_user_id=956230172, chat_id=956230172)
@@ -205,6 +231,10 @@ async def test_dev_seed_data_admin_command_recreates_test_profile_lessons_and_ca
     assert len(lessons) == 2
     assert session.query(LessonAnalysis).join(Lesson).filter(Lesson.learning_profile_id == profile.id).count() == 2
     assert sorted(card.status for card in cards) == ["draft", "draft", "published", "published"]
+    assert all(card.image_url and card.image_source_url for card in cards)
+    assert all(card.image_creator == "Seed photographer" for card in cards)
+    assert all(card.image_license == "by" for card in cards)
+    assert sorted(image_client.queries) == sorted(["journey", "improve", "fluency", "make progress"] * 2)
     assert gateway.sent_messages[-1] == (
         956230172,
         "Тестовые данные готовы ✅\n\n"

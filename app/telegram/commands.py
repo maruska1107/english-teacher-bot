@@ -12,6 +12,13 @@ from app.repositories.students import StudentRepository
 from app.repositories.users import UserRepository
 from app.repositories.zoom_meeting_subscriptions import ZoomMeetingSubscriptionRepository
 from app.repositories.zoom_tokens import ZoomTokenRepository
+from app.services.openverse_images import (
+    OpenverseImageClient,
+    OpenverseImageClientProtocol,
+    build_image_query,
+    lookup_card_image,
+    persist_card_image_result,
+)
 from app.telegram.invites import build_student_invite_link, generate_invite_token, hash_invite_token
 from app.telegram.messages import (
     ACCESS_DENIED_TEMPLATE,
@@ -67,10 +74,17 @@ class TelegramCommandService:
     so command behavior can be tested without network calls.
     """
 
-    def __init__(self, session: Session, gateway: TelegramGateway, settings: Settings) -> None:
+    def __init__(
+        self,
+        session: Session,
+        gateway: TelegramGateway,
+        settings: Settings,
+        image_client: OpenverseImageClientProtocol | None = None,
+    ) -> None:
         self.session = session
         self.gateway = gateway
         self.settings = settings
+        self.image_client = image_client
         self.users = UserRepository(session)
         self.students = StudentRepository(session)
         self.learning_profiles = LearningProfileRepository(session)
@@ -281,20 +295,23 @@ class TelegramCommandService:
             ("fluency", "беглость речи", "draft", lessons[1].id),
             ("make progress", "делать успехи", "draft", lessons[1].id),
         ]
+        saved_cards: list[VocabularyCard] = []
         for term, translation, card_status, lesson_id in seed_cards:
-            self.session.add(
-                VocabularyCard(
-                    teacher_user_id=teacher.id,
-                    learning_profile_id=profile.id,
-                    lesson_id=lesson_id,
-                    term=term,
-                    translation_ru=translation,
-                    example_sentence=f"Test example with {term}.",
-                    status=card_status,
-                )
+            card = VocabularyCard(
+                teacher_user_id=teacher.id,
+                learning_profile_id=profile.id,
+                lesson_id=lesson_id,
+                term=term,
+                translation_ru=translation,
+                example_sentence=f"Test example with {term}.",
+                status=card_status,
             )
+            self.session.add(card)
+            saved_cards.append(card)
 
+        image_queries = [(card, build_image_query(card)) for card in saved_cards]
         self.session.commit()
+        await self._enrich_seed_cards(image_queries)
         await self.gateway.send_message(
             chat_id,
             "Тестовые данные готовы ✅\n\n"
@@ -304,6 +321,21 @@ class TelegramCommandService:
             "Published-карточек: 2\n\n"
             "Откройте /cards для преподавательского WebApp или /start для ученического WebApp.",
         )
+
+    async def _enrich_seed_cards(self, card_queries: list[tuple[VocabularyCard, str]]) -> None:
+        if not card_queries or not self.settings.openverse_images_enabled:
+            return
+
+        async def enrich_with(client: OpenverseImageClientProtocol) -> None:
+            for card, query in card_queries:
+                lookup_query, candidate = await lookup_card_image(query, self.settings, client)
+                persist_card_image_result(self.session, card, lookup_query, candidate)
+
+        if self.image_client is not None:
+            await enrich_with(self.image_client)
+        else:
+            async with OpenverseImageClient(self.settings) as client:
+                await enrich_with(client)
 
     async def handle_status(self, telegram_user_id: int, chat_id: int) -> None:
         if not await self._ensure_allowed_user_or_admin(telegram_user_id, chat_id):
