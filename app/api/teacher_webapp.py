@@ -136,6 +136,7 @@ let draftCards = [];
 let publishedCards = [];
 let addFormOpen = false;
 const imageOptionsState = new Map();
+let imageOptionsRequestGeneration = 0;
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -225,6 +226,7 @@ async function loadProfiles() {
 }
 
 async function openProfile(profileId) {
+  cancelAllImageOptionsRequests();
   selectedProfile = profiles.find((profile) => profile.id === Number(profileId));
   if (!selectedProfile) return;
   currentTab = "draft";
@@ -243,7 +245,7 @@ async function loadProfileCards() {
   ]);
   draftCards = draftData.cards || [];
   publishedCards = publishedData.cards || [];
-  imageOptionsState.clear();
+  cancelAllImageOptionsRequests();
   renderSelectedProfile();
   setStatus(`Новых карточек: ${draftCards.length}`);
 }
@@ -273,6 +275,12 @@ function cardImageTemplate(card) {
   </div>`;
 }
 
+function hideBrokenImageRegion(image) {
+  image.removeAttribute("src");
+  const area = image.closest(".card-image-area");
+  if (area) area.hidden = true;
+}
+
 function imageOptionsTemplate(card) {
   const state = imageOptionsState.get(card.id);
   if (!state?.open) return "";
@@ -284,7 +292,7 @@ function imageOptionsTemplate(card) {
     if (!imageUrl) return "";
     const creator = option.creator ? escapeHtml(option.creator) : "Без автора";
     return `<button type="button" class="image-option" data-action="select-image"
-      data-image-id="${escapeHtml(option.image_id)}">
+      ${state.loading ? "disabled" : ""} data-image-id="${escapeHtml(option.image_id)}">
       <img data-safe-image src="${escapeHtml(imageUrl)}" alt="">
       <div class="image-option-meta">${creator} · ${escapeHtml(option.license)}</div>
     </button>`;
@@ -299,6 +307,7 @@ function imageOptionsTemplate(card) {
 
 function editableCardTemplate(card) {
   const imageState = imageOptionsState.get(card.id);
+  const imageBusy = Boolean(imageState?.loading);
   return `
     <article class="card" data-card-id="${card.id}">
       ${cardImageTemplate(card)}
@@ -315,10 +324,11 @@ function editableCardTemplate(card) {
       <label>Уровень</label>
       <input name="level" value="${escapeHtml(card.level)}">
       <div class="actions">
-        <button type="button" class="secondary" data-action="toggle-images">
+        <button type="button" class="secondary" data-action="toggle-images" ${imageBusy ? "disabled" : ""}>
           ${imageState?.open ? "Скрыть варианты" : "Заменить картинку"}
         </button>
-        <button type="button" class="ghost" data-action="remove-image" ${card.image_url ? "" : "disabled"}>
+        <button type="button" class="ghost" data-action="remove-image"
+          ${card.image_url && !imageBusy ? "" : "disabled"}>
           Убрать картинку
         </button>
         <button type="button" class="danger" data-action="delete-card">Удалить</button>
@@ -525,28 +535,67 @@ function imageOptionsPage(previous, data, offset) {
   };
 }
 
-async function loadImageOptions(cardId, nextPage = false) {
-  const previous = imageOptionsState.get(cardId) || { open: true, options: [], nextOffset: 0 };
-  const offset = imageOptionsRequestOffset(previous, nextPage);
-  if (offset === null) return;
-  syncDraftEditsFromDom();
-  const state = {
+function imageOptionsLoadingState(previous) {
+  return {
     ...previous,
     open: true,
     loading: true,
     error: "",
     empty: false,
   };
+}
+
+function beginImageOptionsRequest(cardId) {
+  const previous = imageOptionsState.get(cardId) || {};
+  if (previous.controller) previous.controller.abort();
+  const request = { token: ++imageOptionsRequestGeneration, controller: new AbortController() };
+  imageOptionsState.set(cardId, { ...previous, requestToken: request.token, controller: request.controller });
+  return request;
+}
+
+function isCurrentImageOptionsRequest(cardId, token) {
+  return imageOptionsState.get(cardId)?.requestToken === token;
+}
+
+function cancelImageOptionsRequest(cardId) {
+  const state = imageOptionsState.get(cardId);
+  if (state?.controller) state.controller.abort();
+  imageOptionsRequestGeneration += 1;
+  imageOptionsState.delete(cardId);
+}
+
+function cancelAllImageOptionsRequests() {
+  for (const cardId of imageOptionsState.keys()) cancelImageOptionsRequest(cardId);
+  imageOptionsState.clear();
+}
+
+async function loadImageOptions(cardId, nextPage = false) {
+  const previous = imageOptionsState.get(cardId) || { open: true, options: [], nextOffset: 0 };
+  const offset = imageOptionsRequestOffset(previous, nextPage);
+  if (offset === null) return;
+  syncDraftEditsFromDom();
+  const request = beginImageOptionsRequest(cardId);
+  const state = imageOptionsLoadingState({
+    ...previous,
+    requestToken: request.token,
+    controller: request.controller,
+  });
   imageOptionsState.set(cardId, state);
   renderSelectedProfile();
   try {
-    const data = await api(`/api/teacher/cards/${cardId}/image-options?offset=${offset}`);
+    const data = await api(`/api/teacher/cards/${cardId}/image-options?offset=${offset}`, {
+      signal: request.controller.signal,
+    });
+    if (!isCurrentImageOptionsRequest(cardId, request.token)) return;
     Object.assign(state, imageOptionsPage(state, data, offset));
   } catch (_) {
+    if (!isCurrentImageOptionsRequest(cardId, request.token)) return;
     state.error = "Не удалось загрузить картинки. Попробуйте ещё раз.";
   } finally {
+    if (!isCurrentImageOptionsRequest(cardId, request.token)) return;
     syncDraftEditsFromDom();
     state.loading = false;
+    delete state.controller;
     imageOptionsState.set(cardId, state);
     renderSelectedProfile();
   }
@@ -556,7 +605,12 @@ async function toggleImageOptions(cardId) {
   syncDraftEditsFromDom();
   const state = imageOptionsState.get(cardId);
   if (state?.open) {
+    if (state.controller) state.controller.abort();
+    imageOptionsRequestGeneration += 1;
     state.open = false;
+    state.loading = false;
+    delete state.controller;
+    delete state.requestToken;
     renderSelectedProfile();
     return;
   }
@@ -573,20 +627,45 @@ async function selectCardImage(cardId, imageId) {
   const state = imageOptionsState.get(cardId);
   const option = state?.options.find((candidate) => candidate.image_id === imageId);
   if (!option) return;
-  const updatedCard = await api(`/api/teacher/cards/${cardId}/image`, {
-    method: "PUT",
-    body: JSON.stringify({ image_id: option.image_id }),
-  });
-  imageOptionsState.delete(cardId);
-  replaceDraftCard(updatedCard);
-  setStatus("Картинка выбрана");
+  cancelImageOptionsRequest(cardId);
+  const busyState = imageOptionsLoadingState({ ...state, controller: null, requestToken: null });
+  imageOptionsState.set(cardId, busyState);
+  renderSelectedProfile();
+  try {
+    const updatedCard = await api(`/api/teacher/cards/${cardId}/image`, {
+      method: "PUT",
+      body: JSON.stringify({ image_id: option.image_id }),
+    });
+    imageOptionsState.delete(cardId);
+    replaceDraftCard(updatedCard);
+    setStatus("Картинка выбрана");
+  } catch (error) {
+    busyState.loading = false;
+    busyState.error = "Не удалось выбрать картинку. Попробуйте ещё раз.";
+    imageOptionsState.set(cardId, busyState);
+    renderSelectedProfile();
+    setStatus(`Ошибка: ${error.message}`);
+  }
 }
 
 async function removeCardImage(cardId) {
-  const updatedCard = await api(`/api/teacher/cards/${cardId}/image`, { method: "DELETE" });
-  imageOptionsState.delete(cardId);
-  replaceDraftCard(updatedCard);
-  setStatus("Картинка убрана");
+  const previous = imageOptionsState.get(cardId) || { open: false, options: [] };
+  cancelImageOptionsRequest(cardId);
+  const busyState = imageOptionsLoadingState({ ...previous, open: previous.open || false });
+  imageOptionsState.set(cardId, busyState);
+  renderSelectedProfile();
+  try {
+    const updatedCard = await api(`/api/teacher/cards/${cardId}/image`, { method: "DELETE" });
+    imageOptionsState.delete(cardId);
+    replaceDraftCard(updatedCard);
+    setStatus("Картинка убрана");
+  } catch (error) {
+    busyState.loading = false;
+    busyState.open = previous.open || false;
+    imageOptionsState.set(cardId, busyState);
+    renderSelectedProfile();
+    setStatus(`Ошибка: ${error.message}`);
+  }
 }
 
 profilesEl.addEventListener("click", async (event) => {
@@ -604,10 +683,10 @@ detailEl.addEventListener("input", (event) => {
 
 detailEl.addEventListener("error", (event) => {
   if (!event.target.matches("img[data-safe-image]")) return;
-  event.target.removeAttribute("src");
-  event.target.hidden = true;
-  if (event.target.classList.contains("card-thumbnail")) {
-    event.target.insertAdjacentHTML("afterend", '<div class="image-placeholder">Картинка недоступна</div>');
+  if (event.target.classList.contains("card-thumbnail")) hideBrokenImageRegion(event.target);
+  else {
+    event.target.removeAttribute("src");
+    event.target.hidden = true;
   }
 }, true);
 
@@ -617,6 +696,7 @@ detailEl.addEventListener("click", async (event) => {
   if (!button) return;
   try {
     if (button.dataset.action === "back-to-profiles") {
+      cancelAllImageOptionsRequests();
       selectedProfile = null;
       renderProfiles();
     }

@@ -1,5 +1,6 @@
 import logging
 from typing import Annotated
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from pydantic import ConfigDict
@@ -25,6 +26,8 @@ from app.schemas.cards import (
 )
 from app.services.openverse_images import (
     OpenverseImageClient,
+    OpenverseOperationStatus,
+    TeacherOpenverseImageClientProtocol,
     build_image_query,
     enrich_card_image,
     get_openverse_image_client,
@@ -98,13 +101,30 @@ def get_teacher_profile_or_404(session: Session, teacher: User, profile_id: int)
     return profile
 
 
-def get_teacher_draft_card_or_error(session: Session, teacher: User, card_id: int) -> VocabularyCard:
-    card = VocabularyCardRepository(session).get_for_teacher(teacher.id, card_id)
+def get_teacher_draft_card_or_error(session: Session, teacher: User | int, card_id: int) -> VocabularyCard:
+    teacher_id = teacher if isinstance(teacher, int) else teacher.id
+    card = VocabularyCardRepository(session).get_for_teacher(teacher_id, card_id)
     if card is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
     if card.status != "draft":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only draft cards can change images")
     return card
+
+
+def _validated_persisted_https_url(value: str | None) -> str | None:
+    if not value or len(value) > 2048:
+        return None
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return None
+    return value if parsed.scheme == "https" and bool(parsed.hostname) else None
+
+
+def _raise_for_teacher_provider_status(provider_status: OpenverseOperationStatus) -> None:
+    if provider_status is OpenverseOperationStatus.UNAVAILABLE:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Image provider unavailable")
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Image is unavailable")
 
 
 @profiles_router.get("", response_model=TeacherCardProfileListResponse)
@@ -171,18 +191,59 @@ async def list_card_image_options(
     card_id: int,
     session: Annotated[Session, Depends(get_db_session)],
     teacher: Annotated[User, Depends(get_current_teacher)],
-    image_client: Annotated[OpenverseImageClient, Depends(get_openverse_image_client)],
+    image_client: Annotated[TeacherOpenverseImageClientProtocol, Depends(get_openverse_image_client)],
     offset: Annotated[int, Query()] = 0,
 ) -> CardImageOptionsResponse:
-    card = get_teacher_draft_card_or_error(session, teacher, card_id)
+    teacher_id = teacher.id
+    card = get_teacher_draft_card_or_error(session, teacher_id, card_id)
     clamped_offset = min(max(offset, 0), 300)
     query = card.image_search_query or build_image_query(card)
-    try:
-        options = await image_client.search(query, offset=clamped_offset, limit=3)
-    except Exception as exc:
-        logger.warning("Teacher image options lookup failed: %s", type(exc).__name__)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Image provider unavailable") from exc
-    return CardImageOptionsResponse(options=options[:3], next_offset=clamped_offset + 3)
+    current_image_url = _validated_persisted_https_url(card.image_url)
+    current_source_url = _validated_persisted_https_url(card.image_source_url)
+    session.rollback()
+
+    options = []
+    seen_image_ids: set[str] = set()
+    seen_image_urls: set[str] = set()
+    seen_source_urls: set[str] = set()
+    page_offset = clamped_offset
+    pages_consumed = 0
+    while page_offset <= 300 and pages_consumed < 5 and len(options) < 3:
+        try:
+            result = await image_client.search_strict(query, offset=page_offset, limit=3)
+        except Exception as exc:
+            logger.warning("Teacher image options lookup failed: %s", type(exc).__name__)
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Image provider unavailable") from exc
+
+        get_teacher_draft_card_or_error(session, teacher_id, card_id)
+        pages_consumed += 1
+        page_offset += 3
+        if result.status is not OpenverseOperationStatus.OK:
+            _raise_for_teacher_provider_status(result.status)
+        candidates = result.value or []
+        for candidate in candidates:
+            if candidate.image_url == current_image_url or candidate.source_url == current_source_url:
+                continue
+            if (
+                candidate.image_id in seen_image_ids
+                or candidate.image_url in seen_image_urls
+                or candidate.source_url in seen_source_urls
+            ):
+                continue
+            seen_image_ids.add(candidate.image_id)
+            seen_image_urls.add(candidate.image_url)
+            seen_source_urls.add(candidate.source_url)
+            options.append(candidate)
+            if len(options) == 3:
+                break
+        if not candidates or len(options) == 3 or page_offset > 300:
+            break
+        session.rollback()
+
+    session.rollback()
+    if not options:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No suitable images found")
+    return CardImageOptionsResponse(options=options, next_offset=page_offset)
 
 
 @router.put("/{card_id}/image", response_model=VocabularyCardRead)
@@ -191,17 +252,22 @@ async def select_card_image(
     payload: StrictCardImageSelection,
     session: Annotated[Session, Depends(get_db_session)],
     teacher: Annotated[User, Depends(get_current_teacher)],
-    image_client: Annotated[OpenverseImageClient, Depends(get_openverse_image_client)],
+    image_client: Annotated[TeacherOpenverseImageClientProtocol, Depends(get_openverse_image_client)],
 ) -> VocabularyCardRead:
-    card = get_teacher_draft_card_or_error(session, teacher, card_id)
+    teacher_id = teacher.id
+    card = get_teacher_draft_card_or_error(session, teacher_id, card_id)
+    query = card.image_search_query or build_image_query(card)
+    session.rollback()
     try:
-        candidate = await image_client.get(payload.image_id)
+        result = await image_client.get_strict(payload.image_id)
     except Exception as exc:
         logger.warning("Teacher image selection lookup failed: %s", type(exc).__name__)
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Image is unavailable") from exc
-    if candidate is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Image is unavailable")
-    query = card.image_search_query or build_image_query(card)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Image provider unavailable") from exc
+    card = get_teacher_draft_card_or_error(session, teacher_id, card_id)
+    candidate = result.value
+    if result.status is not OpenverseOperationStatus.OK or candidate is None:
+        _raise_for_teacher_provider_status(result.status)
+    assert candidate is not None
     VocabularyCardRepository(session).set_image(card, candidate, query)
     session.commit()
     return card_to_response(card)

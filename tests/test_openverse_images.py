@@ -10,6 +10,7 @@ from app.models import VocabularyCard
 from app.schemas.cards import CardImageCandidate, CardImageSelection
 from app.services.openverse_images import (
     OpenverseImageClient,
+    OpenverseOperationStatus,
     build_image_query,
     enrich_card_image,
     get_openverse_image_client,
@@ -332,6 +333,38 @@ async def test_search_returns_empty_for_http_errors(status_code):
     assert result == []
 
 
+@pytest.mark.parametrize("status_code", [429, 500, 503])
+async def test_strict_search_reports_http_provider_outages(status_code):
+    transport = httpx.MockTransport(lambda request: httpx.Response(status_code, json={"detail": "private"}))
+    async with httpx.AsyncClient(transport=transport) as async_client:
+        result = await OpenverseImageClient(make_openverse_settings(), async_client=async_client).search_strict("fox")
+
+    assert result.status is OpenverseOperationStatus.UNAVAILABLE
+    assert result.value is None
+
+
+async def test_strict_search_reports_timeout_without_mutable_client_error_state():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.TimeoutException("private timeout detail", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as async_client:
+        client = OpenverseImageClient(make_openverse_settings(), async_client=async_client)
+        result = await client.search_strict("fox")
+
+    assert result.status is OpenverseOperationStatus.UNAVAILABLE
+    assert result.value is None
+    assert not hasattr(client, "last_error")
+
+
+async def test_strict_search_distinguishes_genuine_empty_results():
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"results": []}))
+    async with httpx.AsyncClient(transport=transport) as async_client:
+        result = await OpenverseImageClient(make_openverse_settings(), async_client=async_client).search_strict("fox")
+
+    assert result.status is OpenverseOperationStatus.OK
+    assert result.value == []
+
+
 @pytest.mark.parametrize(
     "response",
     [
@@ -394,6 +427,25 @@ async def test_get_encodes_image_id_as_one_safe_path_segment_and_parses_candidat
     assert paths == [b"/v1/images/folder%2Fimage%20id/"]
     assert candidate is not None
     assert candidate.image_id == "folder/image id"
+
+
+@pytest.mark.parametrize("status_code", [429, 500, 503])
+async def test_strict_get_reports_http_provider_outages(status_code):
+    transport = httpx.MockTransport(lambda request: httpx.Response(status_code))
+    async with httpx.AsyncClient(transport=transport) as async_client:
+        result = await OpenverseImageClient(make_openverse_settings(), async_client=async_client).get_strict("image-id")
+
+    assert result.status is OpenverseOperationStatus.UNAVAILABLE
+    assert result.value is None
+
+
+async def test_strict_get_distinguishes_provider_not_found():
+    transport = httpx.MockTransport(lambda request: httpx.Response(404, json={"detail": "not found"}))
+    async with httpx.AsyncClient(transport=transport) as async_client:
+        result = await OpenverseImageClient(make_openverse_settings(), async_client=async_client).get_strict("missing")
+
+    assert result.status is OpenverseOperationStatus.NOT_FOUND
+    assert result.value is None
 
 
 @pytest.mark.parametrize("image_id", ["", "   ", "x" * 101])
