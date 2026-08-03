@@ -315,14 +315,8 @@ function editableCardTemplate(card) {
       <input name="term" value="${escapeHtml(card.term)}">
       <label>Перевод</label>
       <input name="translation_ru" value="${escapeHtml(card.translation_ru)}">
-      <label>Определение на английском</label>
-      <textarea name="definition_en">${escapeHtml(card.definition_en)}</textarea>
       <label>Пример</label>
       <textarea name="example_sentence">${escapeHtml(card.example_sentence)}</textarea>
-      <label>Фраза из урока</label>
-      <textarea name="source_phrase">${escapeHtml(card.source_phrase)}</textarea>
-      <label>Уровень</label>
-      <input name="level" value="${escapeHtml(card.level)}">
       <div class="actions">
         <button type="button" class="secondary" data-action="toggle-images" ${imageBusy ? "disabled" : ""}>
           ${imageState?.open ? "Скрыть варианты" : "Заменить картинку"}
@@ -342,7 +336,6 @@ function publishedCardTemplate(card) {
     <article class="card">
       ${cardImageTemplate(card)}
       <h3>${escapeHtml(card.term)} — ${escapeHtml(card.translation_ru)}</h3>
-      ${card.definition_en ? `<p class="readonly-line">${escapeHtml(card.definition_en)}</p>` : ""}
       ${card.example_sentence ? `<p class="readonly-line">${escapeHtml(card.example_sentence)}</p>` : ""}
       <span class="badge badge-muted">Опубликовано</span>
     </article>`;
@@ -374,12 +367,15 @@ function addWordCollapsedButton() {
 }
 
 function payloadFromCard(cardEl) {
-  return Object.fromEntries(
-    ["term", "translation_ru", "definition_en", "example_sentence", "source_phrase", "level"].map((field) => [
-      field,
-      cardEl.querySelector(`[name="${field}"]`).value,
-    ])
-  );
+  const current = draftCards.find((card) => card.id === Number(cardEl.dataset.cardId));
+  return {
+    term: cardEl.querySelector('[name="term"]').value,
+    translation_ru: cardEl.querySelector('[name="translation_ru"]').value,
+    definition_en: current?.definition_en || "",
+    example_sentence: cardEl.querySelector('[name="example_sentence"]').value,
+    source_phrase: current?.source_phrase || "",
+    level: current?.level || "",
+  };
 }
 
 function manualPayload() {

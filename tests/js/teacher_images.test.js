@@ -190,3 +190,31 @@ test('all image management controls are disabled while an image request is busy'
   assert.match(browserSource, /data-action="remove-image"[^`]*imageBusy/s);
   assert.match(browserSource, /data-action="more-images"[^`]*state\.loading/s);
 });
+
+test('teacher card UI omits hidden fields while preserving their values in update payloads', () => {
+  for (const label of ['Определение на английском', 'Фраза из урока', 'Уровень']) {
+    assert.equal(browserSource.includes(`<label>${label}</label>`), false, label);
+  }
+  assert.doesNotMatch(browserSource, /card\.definition_en\s*\?\s*`<p class="readonly-line"/);
+
+  const context = contextWith(
+    ['payloadFromCard'],
+    `const draftCards = [{ id: 7, definition_en: 'kept definition', source_phrase: 'kept phrase', level: 'B1' }];`,
+  );
+  const payload = evaluate(context, `payloadFromCard({
+    dataset: { cardId: '7' },
+    querySelector(selector) {
+      const values = { term: 'journey', translation_ru: 'путешествие', example_sentence: 'A long journey.' };
+      const field = selector.match(/name="([^\\"]+)"/)[1];
+      return { value: values[field] };
+    }
+  })`);
+  assert.deepEqual(JSON.parse(JSON.stringify(payload)), {
+    term: 'journey',
+    translation_ru: 'путешествие',
+    example_sentence: 'A long journey.',
+    definition_en: 'kept definition',
+    source_phrase: 'kept phrase',
+    level: 'B1',
+  });
+});

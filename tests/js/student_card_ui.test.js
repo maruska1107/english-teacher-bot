@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const {
   attributionHtml,
   handleFlashcardActivation,
@@ -9,6 +10,8 @@ const {
   imageBlock,
   safeHttpsUrl,
 } = require('../../app/static/student_card_ui.js');
+
+const studentWebappSource = fs.readFileSync('app/api/student_webapp.py', 'utf8');
 
 function targetInside(kind) {
   const flashcard = { dataset: { flashcard: '' } };
@@ -183,4 +186,9 @@ test('image errors reveal a stable placeholder in the existing reserved region',
   assert.equal(img.hidden, true);
   assert.equal(placeholder.hidden, false);
   assert.ok(classes.has('flashcard-image-failed'));
+});
+
+test('student study cards omit redundant memory instructions', () => {
+  assert.equal(studentWebappSource.includes('Сначала вспоминаем перевод сами'), false);
+  assert.equal(studentWebappSource.includes('Выберите, насколько хорошо помните слово'), false);
 });

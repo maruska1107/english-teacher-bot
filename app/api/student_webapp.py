@@ -157,14 +157,6 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   line-height: 1.4;
   color: var(--muted);
 }
-.reveal-hint {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  font-size: 14px;
-  color: var(--muted);
-}
 .card-list { margin-top: 18px; }
 .card-mode-switch { display: flex; gap: 8px; margin: 12px 0; }
 .card-mode-switch button { flex: 1; padding: 10px 12px; border-radius: 999px; font-size: 14px; }
@@ -345,7 +337,6 @@ function renderStudyCard() {
        <button class="known" data-study-progress="known">Знаю</button>`
     : "";
 
-  const revealHint = isFlipped ? "Выберите, насколько хорошо помните слово" : "Сначала вспоминаем перевод сами";
   const newCount = countByStatus("new");
   const newBadge = newCount ? `<span class="badge">Новых слов: +${newCount}</span>` : "";
 
@@ -358,7 +349,6 @@ function renderStudyCard() {
       <p class="flashcard-main">${escapeHtml(mainText)}</p>
       ${image}
       <p class="flashcard-extra">${extra || " "}</p>
-      <p class="reveal-hint">${revealHint}</p>
     </article>
     <div class="actions study-actions">${actions}</div>`;
   setStatus("");
