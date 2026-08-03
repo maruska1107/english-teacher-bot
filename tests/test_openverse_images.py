@@ -261,6 +261,20 @@ async def test_search_returns_empty_for_timeout_and_connection_errors(error_type
     assert result == []
 
 
+@pytest.mark.parametrize("error_type", [httpx.RemoteProtocolError, httpx.ProxyError])
+@pytest.mark.parametrize(("method_name", "argument", "expected"), [("search", "fox", []), ("get", "image-id", None)])
+async def test_requests_safely_fall_back_for_other_httpx_errors(error_type, method_name, argument, expected, caplog):
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise error_type("sensitive upstream details", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as async_client:
+        client = OpenverseImageClient(make_openverse_settings(), async_client=async_client)
+        result = await getattr(client, method_name)(argument)
+
+    assert result == expected
+    assert [record.getMessage() for record in caplog.records] == [f"Openverse request failed: {error_type.__name__}"]
+
+
 async def test_get_encodes_image_id_as_one_safe_path_segment_and_parses_candidate():
     paths: list[bytes] = []
 

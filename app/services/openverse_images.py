@@ -92,7 +92,7 @@ class OpenverseImageClient:
             else:
                 async with httpx.AsyncClient() as client:
                     response = await client.get(url, **request_kwargs)
-        except (httpx.TimeoutException, httpx.NetworkError) as exc:
+        except httpx.HTTPError as exc:
             logger.warning("Openverse request failed: %s", type(exc).__name__)
             return None
 
