@@ -13,6 +13,8 @@ from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
 from app.models import LearningProfile, User, VocabularyCard
+from app.schemas.cards import CardImageCandidate
+from app.services.openverse_images import get_openverse_image_client
 
 
 def make_session() -> Session:
@@ -31,6 +33,7 @@ def make_settings() -> Settings:
         app_env="test",
         telegram_bot_token="test-bot-token",
         allowed_telegram_teacher_ids="1001",
+        openverse_images_enabled=False,
     )
 
 
@@ -433,3 +436,83 @@ def test_teacher_cannot_create_card_for_other_teacher_profile_or_batch_publish_i
     assert create_other.status_code == 404
     assert publish_other.status_code == 404
     assert publish_own.status_code == 200
+
+
+class FakeCreateImageClient:
+    def __init__(self, fail: bool = False) -> None:
+        self.fail = fail
+        self.queries: list[str] = []
+
+    async def search(self, query: str, offset: int = 0, limit: int = 3):
+        self.queries.append(query)
+        if self.fail:
+            raise RuntimeError("Openverse unavailable")
+        return [
+            CardImageCandidate(
+                image_id="fluency-image",
+                image_url="https://images.test/fluency.jpg",
+                source_url="https://source.test/fluency",
+                creator="Alice",
+                license="by",
+                license_url="https://creativecommons.org/licenses/by/4.0/",
+            )
+        ]
+
+    async def get(self, image_id: str):
+        raise AssertionError("get should not be called")
+
+
+def test_manual_create_commits_draft_then_enriches_with_overridden_client():
+    session = make_session()
+    _, profile, _, _ = seed_teacher_profile_and_cards(session)
+    client = make_client(session)
+    fake = FakeCreateImageClient()
+    client.app.dependency_overrides[get_settings] = lambda: Settings(
+        app_env="test",
+        telegram_bot_token="test-bot-token",
+        allowed_telegram_teacher_ids="1001",
+        openverse_images_enabled=True,
+    )
+    client.app.dependency_overrides[get_openverse_image_client] = lambda: fake
+
+    response = client.post(
+        "/api/teacher/cards",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+        json={
+            "learning_profile_id": profile.id,
+            "term": "fluency",
+            "translation_ru": "беглость",
+            "definition_en": "speaking smoothly",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["image_url"] == "https://images.test/fluency.jpg"
+    assert fake.queries == ["fluency speaking smoothly"]
+    assert session.get(VocabularyCard, response.json()["id"]).status == "draft"
+
+
+def test_manual_create_returns_committed_draft_when_external_lookup_fails():
+    session = make_session()
+    _, profile, _, _ = seed_teacher_profile_and_cards(session)
+    client = make_client(session)
+    fake = FakeCreateImageClient(fail=True)
+    client.app.dependency_overrides[get_settings] = lambda: Settings(
+        app_env="test",
+        telegram_bot_token="test-bot-token",
+        allowed_telegram_teacher_ids="1001",
+        openverse_images_enabled=True,
+    )
+    client.app.dependency_overrides[get_openverse_image_client] = lambda: fake
+
+    response = client.post(
+        "/api/teacher/cards",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+        json={"learning_profile_id": profile.id, "term": "fluency", "translation_ru": "беглость"},
+    )
+
+    assert response.status_code == 200
+    stored = session.get(VocabularyCard, response.json()["id"])
+    assert stored.status == "draft"
+    assert stored.image_url is None
+    assert stored.image_search_query == "fluency"

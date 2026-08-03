@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Protocol
 
@@ -6,10 +7,15 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.models import Lesson, LessonAnalysis
+from app.models import Lesson, LessonAnalysis, VocabularyCard
 from app.prompts.lesson_analysis import LESSON_ANALYSIS_PROMPT_TEMPLATE, PROMPT_VERSION
 from app.repositories.vocabulary_cards import VocabularyCardRepository
 from app.schemas.analysis import LessonAnalysisResult
+from app.services.openverse_images import (
+    OpenverseImageClient,
+    OpenverseImageClientProtocol,
+    enrich_card_image,
+)
 
 
 class LLMJsonClient(Protocol):
@@ -40,10 +46,17 @@ class OpenAIJsonClient:
 
 
 class AnalysisService:
-    def __init__(self, session: Session, settings: Settings, llm_client: LLMJsonClient | None = None) -> None:
+    def __init__(
+        self,
+        session: Session,
+        settings: Settings,
+        llm_client: LLMJsonClient | None = None,
+        image_client: OpenverseImageClientProtocol | None = None,
+    ) -> None:
         self.session = session
         self.settings = settings
         self.llm_client = llm_client or OpenAIJsonClient(settings)
+        self.image_client = image_client if image_client is not None else OpenverseImageClient(settings)
 
     async def analyze_lesson(self, lesson_id: int) -> LessonAnalysis:
         lesson = self.session.get(Lesson, lesson_id)
@@ -59,7 +72,7 @@ class AnalysisService:
             raw_response = await self.llm_client.complete_json(prompt)
             try:
                 result = LessonAnalysisResult.model_validate(json.loads(raw_response))
-                return self._save_analysis(lesson, result)
+                return await self._save_analysis(lesson, result)
             except (json.JSONDecodeError, ValidationError) as exc:
                 last_error = exc
 
@@ -67,7 +80,7 @@ class AnalysisService:
         self._mark_failed(lesson, message)
         raise ValueError(message)
 
-    def _save_analysis(self, lesson: Lesson, result: LessonAnalysisResult) -> LessonAnalysis:
+    async def _save_analysis(self, lesson: Lesson, result: LessonAnalysisResult) -> LessonAnalysis:
         teacher_report = self._build_teacher_report(result)
         existing = lesson.analysis
         if existing is None:
@@ -87,21 +100,36 @@ class AnalysisService:
             analysis.student_message = result.student_message
             analysis.model = self.settings.openai_model
             analysis.prompt_version = PROMPT_VERSION
-        self._save_draft_vocabulary_cards(lesson, result)
+        new_cards = self._save_draft_vocabulary_cards(lesson, result)
         lesson.processing_status = "analyzed"
         lesson.processing_error = None
         self.session.commit()
+        await self._enrich_new_cards(new_cards)
+        self.session.commit()
         return analysis
 
-    def _save_draft_vocabulary_cards(self, lesson: Lesson, result: LessonAnalysisResult) -> None:
+    def _save_draft_vocabulary_cards(
+        self, lesson: Lesson, result: LessonAnalysisResult
+    ) -> list[VocabularyCard]:
         if lesson.learning_profile_id is None or not result.vocabulary_cards:
-            return
-        VocabularyCardRepository(self.session).create_draft_cards(
+            return []
+        return VocabularyCardRepository(self.session).create_draft_cards(
             teacher_user_id=lesson.teacher_user_id,
             learning_profile_id=lesson.learning_profile_id,
             lesson_id=lesson.id,
             cards=[card.model_dump(mode="json") for card in result.vocabulary_cards],
         )
+
+    async def _enrich_new_cards(self, cards: list[VocabularyCard]) -> None:
+        if not cards or not self.settings.openverse_images_enabled:
+            return
+        semaphore = asyncio.Semaphore(max(1, self.settings.openverse_batch_concurrency))
+
+        async def enrich(card: VocabularyCard) -> None:
+            async with semaphore:
+                await enrich_card_image(self.session, card, self.settings, self.image_client)
+
+        await asyncio.gather(*(enrich(card) for card in cards))
 
     def _mark_failed(self, lesson: Lesson, message: str) -> None:
         lesson.processing_status = "failed"

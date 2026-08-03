@@ -7,6 +7,7 @@ from app.analysis.service import AnalysisService
 from app.core.config import Settings
 from app.db.base import Base
 from app.models import LearningProfile, Lesson, LessonAnalysis, User, VocabularyCard
+from app.schemas.cards import CardImageCandidate
 
 
 class FakeLLMClient:
@@ -27,7 +28,7 @@ def make_session() -> Session:
 
 
 def make_settings() -> Settings:
-    return Settings(app_env="test", openai_model="gpt-test-model")
+    return Settings(app_env="test", openai_model="gpt-test-model", openverse_images_enabled=False)
 
 
 def valid_analysis_json() -> str:
@@ -156,3 +157,102 @@ async def test_analysis_service_marks_lesson_failed_after_invalid_retry():
     failed_lesson = session.get(Lesson, lesson.id)
     assert failed_lesson.processing_status == "failed"
     assert "valid JSON" in failed_lesson.processing_error
+
+
+class ConcurrentFakeImageClient:
+    def __init__(self, failing_terms: set[str] | None = None) -> None:
+        self.failing_terms = failing_terms or set()
+        self.queries: list[str] = []
+        self.active = 0
+        self.max_active = 0
+
+    async def search(self, query: str, offset: int = 0, limit: int = 3):
+        import asyncio
+
+        self.queries.append(query)
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        await asyncio.sleep(0)
+        self.active -= 1
+        term = query.split()[0]
+        if term in self.failing_terms:
+            raise RuntimeError("candidate lookup failed")
+        return [
+            CardImageCandidate(
+                image_id=f"image-{term}",
+                image_url=f"https://images.test/{term}.jpg",
+                source_url=f"https://source.test/{term}",
+                creator="Creator",
+                license="by",
+                license_url="https://creativecommons.org/licenses/by/4.0/",
+            )
+        ]
+
+    async def get(self, image_id: str):
+        raise AssertionError("get should not be called")
+
+
+async def test_analysis_enriches_only_new_cards_with_limited_concurrency_and_isolated_failure():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    profile = LearningProfile(
+        teacher_user_id=teacher.id,
+        name="B1",
+        profile_type="group",
+        card_publish_mode="manual_review",
+    )
+    session.add(profile)
+    session.flush()
+    old_card = VocabularyCard(
+        teacher_user_id=teacher.id,
+        learning_profile_id=profile.id,
+        term="existing",
+        translation_ru="старый",
+        status="draft",
+    )
+    lesson = Lesson(
+        teacher_user_id=teacher.id,
+        learning_profile_id=profile.id,
+        meeting_id="batch",
+        meeting_uuid="uuid-batch",
+        transcript="lesson transcript",
+        processing_status="transcript_ready",
+    )
+    session.add_all([old_card, lesson])
+    session.commit()
+    analysis_payload = json.loads(valid_analysis_json())
+    analysis_payload["vocabulary_cards"] = [
+        {"term": term, "translation_ru": translation, "definition_en": f"Definition for {term}"}
+        for term, translation in [("apple", "яблоко"), ("banana", "банан"), ("cherry", "вишня")]
+    ]
+    fake = ConcurrentFakeImageClient(failing_terms={"banana"})
+    settings = Settings(
+        app_env="test",
+        openai_model="gpt-test-model",
+        openverse_images_enabled=True,
+        openverse_batch_concurrency=2,
+    )
+
+    await AnalysisService(
+        session=session,
+        settings=settings,
+        llm_client=FakeLLMClient([json.dumps(analysis_payload)]),
+        image_client=fake,
+    ).analyze_lesson(lesson.id)
+
+    cards = {card.term: card for card in session.query(VocabularyCard).all()}
+    assert fake.max_active == 2
+    assert set(fake.queries) == {
+        "apple Definition for apple",
+        "banana Definition for banana",
+        "cherry Definition for cherry",
+    }
+    assert cards["apple"].image_url == "https://images.test/apple.jpg"
+    assert cards["cherry"].image_url == "https://images.test/cherry.jpg"
+    assert cards["banana"].image_url is None
+    assert cards["banana"].image_search_query == "banana Definition for banana"
+    assert cards["existing"].image_search_query is None
+    assert session.get(Lesson, lesson.id).processing_status == "analyzed"
+    assert session.query(LessonAnalysis).filter_by(lesson_id=lesson.id).count() == 1

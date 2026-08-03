@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4.1-mini"
 
+    openverse_images_enabled: bool = True
+    openverse_api_base_url: str = "https://api.openverse.org/v1"
+    openverse_timeout_seconds: float = 4.0
+    openverse_result_page_size: int = 3
+    openverse_batch_concurrency: int = 2
+    openverse_user_agent: str = "EnglishTutorAI/0.1 (support@englishtutorai.ru)"
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> PostgresDsn:
