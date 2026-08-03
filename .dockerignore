@@ -1,0 +1,31 @@
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Git metadata and local worktrees
+.git
+.gitignore
+.worktrees
+
+# Python environments and caches
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Local runtime data and backups
+backups
+logs
+*.log
+*.sql
+*.sql.gz
+
+# Editor and OS artifacts
+.DS_Store
+.idea
+.vscode

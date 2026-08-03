@@ -1,7 +1,11 @@
+from pathlib import Path
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 router = APIRouter()
+
+CARD_UI_SCRIPT = (Path(__file__).resolve().parents[1] / "static" / "student_card_ui.js").read_text(encoding="utf-8")
 
 STYLE = """
 :root {
@@ -74,6 +78,57 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   cursor: pointer;
   user-select: none;
 }
+.flashcard-with-image {
+  height: 460px;
+  grid-template-rows: 24px 110px 156px minmax(0, 1fr) 42px;
+}
+.flashcard-image-wrapper {
+  display: grid;
+  grid-template-rows: 126px 30px;
+  height: 156px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: left;
+}
+.flashcard-image-region { position: relative; height: 126px; }
+.flashcard-image {
+  display: block;
+  width: 100%;
+  height: 126px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--primary-soft);
+}
+.flashcard-image-attribution {
+  height: 30px;
+  padding: 4px 2px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  user-select: text;
+}
+.flashcard-image-attribution a { color: var(--primary-soft-text); }
+.flashcard-image-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary-soft-text);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+.flashcard-image-placeholder[hidden], .flashcard-image-failed .flashcard-image { display: none; }
+.flashcard:focus-visible { outline: 3px solid var(--primary-border); outline-offset: 3px; }
 .flashcard-side {
   display: flex;
   align-items: center;
@@ -138,7 +193,7 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   color: var(--badge-text);
 }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; justify-content: center; }
-.study-actions { min-height: 64px; margin-top: 0; align-items: center; }
+.study-actions { height: 64px; min-height: 64px; margin-top: 0; align-items: center; }
 button {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -182,14 +237,6 @@ function headers() {
     "content-type": "application/json",
     "x-telegram-init-data": initData,
   };
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }
 
 async function api(path, options = {}) {
@@ -286,10 +333,12 @@ function renderStudyCard() {
     currentIndex = 0;
   }
   const card = currentCard();
+  const image = imageBlock(card);
+  const flashcardClass = image ? "flashcard flashcard-with-image" : "flashcard";
   const sideLabel = isFlipped ? "Перевод" : "English";
   const mainText = isFlipped ? card.translation_ru : card.term;
   const extra = isFlipped
-    ? [card.definition_en, card.example_sentence].filter(Boolean).join("<br>")
+    ? [card.definition_en, card.example_sentence].filter(Boolean).map(escapeHtml).join("<br>")
     : "Нажмите, чтобы перевернуть";
   const actions = isFlipped
     ? `<button class="learning" data-study-progress="learning">Ещё учу</button>
@@ -303,9 +352,11 @@ function renderStudyCard() {
   studyEl.innerHTML = `
     ${cardModeSwitch()}
     <div class="study-progress">Карточка ${currentIndex + 1} из ${studyCards.length} ${newBadge}</div>
-    <article class="flashcard" data-flashcard data-card-id="${card.id}">
+    <article class="${flashcardClass}" data-flashcard data-card-id="${card.id}" role="button" tabindex="0"
+             aria-pressed="${isFlipped}" aria-label="Перевернуть карточку">
       <p class="flashcard-side">${sideLabel}</p>
       <p class="flashcard-main">${escapeHtml(mainText)}</p>
+      ${image}
       <p class="flashcard-extra">${extra || " "}</p>
       <p class="reveal-hint">${revealHint}</p>
     </article>
@@ -457,9 +508,11 @@ studyEl.addEventListener("click", async (event) => {
     }
     return;
   }
-  if (event.target.closest("[data-flashcard]")) {
-    flipCard();
-  }
+  handleFlashcardActivation(event, flipCard);
+});
+
+studyEl.addEventListener("keydown", (event) => {
+  handleFlashcardActivation(event, flipCard);
 });
 
 navButtons.forEach((button) => {
@@ -497,6 +550,7 @@ def _page() -> str:
     <section id="study" class="study-area"></section>
     <section id="stats" class="card-list hidden"></section>
   </main>
+  <script>{CARD_UI_SCRIPT}</script>
   <script>{SCRIPT}</script>
 </body>
 </html>"""

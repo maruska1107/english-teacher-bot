@@ -397,15 +397,12 @@ Run the Step 2 command. Expected: pass.
 - [ ] **Step 5: Run the complete pre-deploy gate**
 
 ```bash
-docker compose run --rm --entrypoint sh \
-  -v "$PWD/tests:/app/tests:ro" -v "$PWD/app:/app/app:ro" \
-  -v "$PWD/alembic:/app/alembic:ro" -v "$PWD/pyproject.toml:/app/pyproject.toml:ro" \
-  backend -c 'pytest tests -q && ruff check app tests'
+./scripts/test_all.sh
 git diff --check
 git status --short
 ```
 
-Expected: all tests pass and Ruff is clean.
+Expected: the canonical gate runs all Python tests, every `tests/js/*.test.js` security/behavior test, and Ruff; all checks pass.
 
 - [ ] **Step 6: Commit**
 
@@ -469,10 +466,7 @@ Remove the exact Nginx location for `/design-preview/student-image-card` with a 
 - [ ] **Step 6: Fresh final verification and push**
 
 ```bash
-docker compose run --rm --entrypoint sh \
-  -v "$PWD/tests:/app/tests:ro" -v "$PWD/app:/app/app:ro" \
-  -v "$PWD/alembic:/app/alembic:ro" -v "$PWD/pyproject.toml:/app/pyproject.toml:ro" \
-  backend -c 'pytest tests -q && ruff check app tests'
+./scripts/test_all.sh
 curl -fsS https://englishtutorai.ru/health
 curl -fsS https://englishtutorai.ru/ready
 nginx -t
