@@ -61,7 +61,7 @@ The canonical contributor and pre-deploy gate is portable across the main checko
 ./scripts/test_all.sh
 ```
 
-It requires Docker and Node.js 18 or newer. The script builds an isolated Python test image, source-mounts the current checkout, runs the complete Python suite and Ruff, and always runs every `tests/js/*.test.js` file with Node's built-in test runner. Node is a host-side test dependency only and is not added to the production backend image.
+It requires Docker, Python 3, and Node.js 18 or newer. The script syntax-checks each webapp's complete literal production `SCRIPT`, always runs every `tests/js/*.test.js` file with Node's built-in test runner, then builds and runs the complete Python suite and Ruff against the immutable Docker image ID returned for the current checkout. This avoids mutable test tags, so canonical gates can run safely in concurrent Git worktrees. Node is a host-side test dependency only and is not added to the production backend image.
 
 ## Telegram commands
 
