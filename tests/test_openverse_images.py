@@ -8,7 +8,12 @@ from app.core.config import Settings
 from app.db.base import Base
 from app.models import VocabularyCard
 from app.schemas.cards import CardImageCandidate, CardImageSelection
-from app.services.openverse_images import OpenverseImageClient, build_image_query, enrich_card_image
+from app.services.openverse_images import (
+    OpenverseImageClient,
+    build_image_query,
+    enrich_card_image,
+    get_openverse_image_client,
+)
 
 VALID_CANDIDATE = {
     "image_id": "openverse-1",
@@ -130,25 +135,66 @@ def make_openverse_settings(**overrides) -> Settings:
     return Settings(**values)
 
 
-def test_build_image_query_uses_only_normalized_english_card_content_and_deduplicates():
-    card = make_card(source_phrase="  make   a journey  ", example_sentence="to travel somewhere")
+def test_build_image_query_sends_only_normalized_term_without_personal_context():
+    card = make_card(
+        term="  make   a journey  ",
+        definition_en="Alice Johnson discussed this with Bob Smith",
+        source_phrase="Alice Johnson said make a journey",
+        example_sentence="Bob Smith made a journey yesterday",
+        translation_ru="путешествие Ивана Иванова",
+    )
 
     query = build_image_query(card)
 
-    assert query == "make a journey to travel somewhere"
-    assert "совершить" not in query
-    assert "1001" not in query
-    assert "17" not in query
-    assert "23" not in query
+    assert query == "make a journey"
+    for private_value in ("Alice", "Johnson", "Bob", "Smith", "Ивана", "Иванова", "17", "23"):
+        assert private_value not in query
 
 
 def test_build_image_query_caps_query_at_documented_300_characters():
-    query = build_image_query(
-        make_card(term="word", definition_en="d" * 200, source_phrase="s" * 200, example_sentence="e" * 200)
-    )
+    query = build_image_query(make_card(term="word " + "x" * 400))
 
     assert len(query) == 300
     assert query.startswith("word ")
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("openverse_api_base_url", "http://openverse.test/v1"),
+        ("openverse_api_base_url", "/v1"),
+        ("openverse_api_base_url", "https:///v1"),
+        ("openverse_api_base_url", "https://openverse.test/" + "x" * 2048),
+        ("openverse_timeout_seconds", 0),
+        ("openverse_timeout_seconds", -1),
+        ("openverse_timeout_seconds", 31),
+        ("openverse_timeout_seconds", float("nan")),
+        ("openverse_timeout_seconds", float("inf")),
+        ("openverse_result_page_size", 0),
+        ("openverse_result_page_size", 51),
+        ("openverse_batch_concurrency", 0),
+        ("openverse_batch_concurrency", 11),
+        ("openverse_user_agent", "   "),
+        ("openverse_user_agent", "x" * 256),
+    ],
+)
+def test_settings_reject_invalid_openverse_values(field_name, invalid_value):
+    with pytest.raises(ValidationError):
+        make_openverse_settings(**{field_name: invalid_value})
+
+
+def test_settings_normalize_valid_openverse_strings_and_keep_url_plain_str():
+    settings = make_openverse_settings(
+        openverse_api_base_url="  https://openverse.test/v1/  ",
+        openverse_user_agent="  English Tutor Test/1.0  ",
+        openverse_timeout_seconds=30,
+        openverse_result_page_size=50,
+        openverse_batch_concurrency=10,
+    )
+
+    assert settings.openverse_api_base_url == "https://openverse.test/v1"
+    assert isinstance(settings.openverse_api_base_url, str)
+    assert settings.openverse_user_agent == "English Tutor Test/1.0"
 
 
 async def test_search_sends_exact_headers_timeout_params_and_page_mapping():
@@ -225,6 +271,57 @@ async def test_search_parses_valid_candidates_and_filters_each_malformed_result(
     assert isinstance(candidates[0].image_url, str)
     assert isinstance(candidates[0].source_url, str)
     assert isinstance(candidates[0].license_url, str)
+
+
+async def test_search_processes_at_most_effective_limit_from_oversized_response():
+    payload = {
+        "results": [
+            {
+                "id": f"image-{index}",
+                "thumbnail": f"https://images.test/{index}.jpg",
+                "foreign_landing_url": f"https://source.test/{index}",
+                "license": "by",
+            }
+            for index in range(1000)
+        ]
+    }
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+    async with httpx.AsyncClient(transport=transport) as raw:
+        candidates = await OpenverseImageClient(
+            make_openverse_settings(openverse_result_page_size=3), async_client=raw
+        ).search("fox", limit=50)
+
+    assert [candidate.image_id for candidate in candidates] == ["image-0", "image-1", "image-2"]
+
+
+async def test_owned_client_is_closed_by_context_manager():
+    client = OpenverseImageClient(make_openverse_settings())
+    owned_http_client = client._async_client
+
+    async with client:
+        assert not owned_http_client.is_closed
+
+    assert owned_http_client.is_closed
+
+
+async def test_injected_client_remains_caller_owned_after_wrapper_close():
+    injected = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200)))
+    client = OpenverseImageClient(make_openverse_settings(), async_client=injected)
+
+    await client.aclose()
+
+    assert not injected.is_closed
+    await injected.aclose()
+
+
+async def test_fastapi_dependency_closes_its_owned_client():
+    dependency = get_openverse_image_client(make_openverse_settings())
+    client = await anext(dependency)
+    owned_http_client = client._async_client
+
+    await dependency.aclose()
+
+    assert owned_http_client.is_closed
 
 
 @pytest.mark.parametrize("status_code", [429, 500])
@@ -351,7 +448,7 @@ async def test_enrichment_stores_query_when_search_is_empty_or_fails():
         changed = await enrich_card_image(session, card, make_openverse_settings(), fake)
 
         assert changed is False
-        assert card.image_search_query == "make a journey to travel somewhere We made a journey yesterday."
+        assert card.image_search_query == "make a journey"
 
 
 async def test_enrichment_sets_valid_image_metadata_from_first_result():
@@ -364,7 +461,7 @@ async def test_enrichment_sets_valid_image_metadata_from_first_result():
     changed = await enrich_card_image(session, card, make_openverse_settings(), fake)
 
     assert changed is True
-    assert fake.queries == [("make a journey to travel somewhere We made a journey yesterday.", 0, 1)]
+    assert fake.queries == [("make a journey", 0, 1)]
     assert card.image_url == candidate.image_url
     assert card.image_source_url == candidate.source_url
     assert card.image_search_query == fake.queries[0][0]

@@ -439,11 +439,14 @@ def test_teacher_cannot_create_card_for_other_teacher_profile_or_batch_publish_i
 
 
 class FakeCreateImageClient:
-    def __init__(self, fail: bool = False) -> None:
+    def __init__(self, fail: bool = False, session: Session | None = None) -> None:
         self.fail = fail
+        self.session = session
         self.queries: list[str] = []
 
     async def search(self, query: str, offset: int = 0, limit: int = 3):
+        if self.session is not None:
+            assert not self.session.in_transaction(), "manual draft must commit before external lookup"
         self.queries.append(query)
         if self.fail:
             raise RuntimeError("Openverse unavailable")
@@ -466,7 +469,7 @@ def test_manual_create_commits_draft_then_enriches_with_overridden_client():
     session = make_session()
     _, profile, _, _ = seed_teacher_profile_and_cards(session)
     client = make_client(session)
-    fake = FakeCreateImageClient()
+    fake = FakeCreateImageClient(session=session)
     client.app.dependency_overrides[get_settings] = lambda: Settings(
         app_env="test",
         telegram_bot_token="test-bot-token",
@@ -488,7 +491,7 @@ def test_manual_create_commits_draft_then_enriches_with_overridden_client():
 
     assert response.status_code == 200
     assert response.json()["image_url"] == "https://images.test/fluency.jpg"
-    assert fake.queries == ["fluency speaking smoothly"]
+    assert fake.queries == ["fluency"]
     assert session.get(VocabularyCard, response.json()["id"]).status == "draft"
 
 
@@ -516,3 +519,50 @@ def test_manual_create_returns_committed_draft_when_external_lookup_fails():
     assert stored.status == "draft"
     assert stored.image_url is None
     assert stored.image_search_query == "fluency"
+
+
+def test_manual_create_survives_optional_image_commit_failure_and_rolls_back(monkeypatch):
+    from sqlalchemy.exc import SQLAlchemyError
+
+    session = make_session()
+    _, profile, _, _ = seed_teacher_profile_and_cards(session)
+    client = make_client(session)
+    fake = FakeCreateImageClient(session=session)
+    client.app.dependency_overrides[get_settings] = lambda: Settings(
+        app_env="test",
+        telegram_bot_token="test-bot-token",
+        allowed_telegram_teacher_ids="1001",
+        openverse_images_enabled=True,
+    )
+    client.app.dependency_overrides[get_openverse_image_client] = lambda: fake
+    real_commit = session.commit
+    real_rollback = session.rollback
+    commit_calls = 0
+    rollback_calls = 0
+
+    def flaky_commit():
+        nonlocal commit_calls
+        commit_calls += 1
+        if commit_calls == 2:
+            raise SQLAlchemyError("optional metadata commit failed")
+        real_commit()
+
+    def tracked_rollback():
+        nonlocal rollback_calls
+        rollback_calls += 1
+        real_rollback()
+
+    monkeypatch.setattr(session, "commit", flaky_commit)
+    monkeypatch.setattr(session, "rollback", tracked_rollback)
+    response = client.post(
+        "/api/teacher/cards",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+        json={"learning_profile_id": profile.id, "term": "fluency", "translation_ru": "беглость"},
+    )
+
+    assert response.status_code == 200
+    assert rollback_calls == 1
+    stored = session.get(VocabularyCard, response.json()["id"])
+    assert stored.status == "draft"
+    assert stored.image_url is None
+    assert session.query(VocabularyCard).count() == 3

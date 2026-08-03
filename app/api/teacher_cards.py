@@ -19,7 +19,12 @@ from app.schemas.cards import (
     VocabularyCardRead,
     VocabularyCardUpdate,
 )
-from app.services.openverse_images import OpenverseImageClient, enrich_card_image, get_openverse_image_client
+from app.services.openverse_images import (
+    OpenverseImageClient,
+    build_image_query,
+    enrich_card_image,
+    get_openverse_image_client,
+)
 from app.telegram.webapp_auth import TelegramWebAppAuthError, verify_telegram_webapp_init_data
 
 router = APIRouter(prefix="/api/teacher/cards", tags=["teacher-cards"])
@@ -121,9 +126,9 @@ async def create_card(
 ) -> VocabularyCardRead:
     get_teacher_profile_or_404(session, teacher, payload.learning_profile_id)
     card = VocabularyCardRepository(session).create_manual_draft_card(teacher.id, payload)
+    image_query = build_image_query(card)
     session.commit()
-    await enrich_card_image(session, card, settings, image_client)
-    session.commit()
+    await enrich_card_image(session, card, settings, image_client, query=image_query)
     return card_to_response(card)
 
 

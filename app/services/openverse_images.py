@@ -1,10 +1,12 @@
 import logging
+from collections.abc import AsyncGenerator
 from typing import Annotated, Any, Protocol
 from urllib.parse import quote
 
 import httpx
 from fastapi import Depends
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -27,24 +29,26 @@ class OpenverseImageClientProtocol(Protocol):
 
 
 def build_image_query(card: VocabularyCard) -> str:
-    """Build a whitespace-normalized, de-duplicated English query capped at 300 characters."""
-    pieces: list[str] = []
-    seen: set[str] = set()
-    for value in (card.term, card.definition_en, card.source_phrase, card.example_sentence):
-        if not value:
-            continue
-        normalized = " ".join(value.split())
-        if normalized and normalized not in seen:
-            pieces.append(normalized)
-            seen.add(normalized)
-    return " ".join(pieces)[:MAX_IMAGE_QUERY_LENGTH].rstrip()
+    """Build a bounded query from the normalized term only; never include card context."""
+    return " ".join(card.term.split())[:MAX_IMAGE_QUERY_LENGTH].rstrip()
 
 
 class OpenverseImageClient:
     def __init__(self, settings: Settings, async_client: httpx.AsyncClient | None = None) -> None:
         self.settings = settings
-        self._async_client = async_client
-        self._base_url = settings.openverse_api_base_url.rstrip("/")
+        self._owns_async_client = async_client is None
+        self._async_client = async_client or httpx.AsyncClient()
+        self._base_url = settings.openverse_api_base_url
+
+    async def __aenter__(self) -> "OpenverseImageClient":
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        if self._owns_async_client:
+            await self._async_client.aclose()
 
     async def search(self, query: str, offset: int = 0, limit: int = 3) -> list[CardImageCandidate]:
         page_size = self._clamp_limit(limit)
@@ -62,7 +66,7 @@ class OpenverseImageClient:
             return []
 
         candidates: list[CardImageCandidate] = []
-        for result in payload["results"]:
+        for result in payload["results"][:page_size]:
             candidate = self._parse_candidate(result)
             if candidate is not None:
                 candidates.append(candidate)
@@ -87,11 +91,7 @@ class OpenverseImageClient:
             "params": params,
         }
         try:
-            if self._async_client is not None:
-                response = await self._async_client.get(url, **request_kwargs)
-            else:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(url, **request_kwargs)
+            response = await self._async_client.get(url, **request_kwargs)
         except httpx.HTTPError as exc:
             logger.warning("Openverse request failed: %s", type(exc).__name__)
             return None
@@ -127,29 +127,59 @@ async def enrich_card_image(
     card: VocabularyCard,
     settings: Settings,
     client: OpenverseImageClientProtocol,
+    query: str | None = None,
 ) -> bool:
     if not settings.openverse_images_enabled:
         return False
 
-    query = build_image_query(card)
-    card.image_search_query = query
-    session.flush()
+    query = build_image_query(card) if query is None else query
     if not query:
         return False
 
+    lookup_query, candidate = await lookup_card_image(query, settings, client)
+    return persist_card_image_result(session, card, lookup_query, candidate)
+
+
+async def lookup_card_image(
+    query: str,
+    settings: Settings,
+    client: OpenverseImageClientProtocol,
+) -> tuple[str, CardImageCandidate | None]:
+    """Perform external lookup only, without reading or mutating ORM/session state."""
+    if not settings.openverse_images_enabled or not query:
+        return query, None
     try:
         candidates = await client.search(query, limit=1)
-        if not candidates:
-            return False
-        VocabularyCardRepository(session).set_image(card, candidates[0], query)
-        return True
+        return query, candidates[0] if candidates else None
     except Exception as exc:
         logger.warning("Card image enrichment failed: %s", type(exc).__name__)
+        return query, None
+
+
+def persist_card_image_result(
+    session: Session,
+    card: VocabularyCard,
+    query: str,
+    candidate: CardImageCandidate | None,
+) -> bool:
+    """Persist one optional lookup result and restore session usability on DB failure."""
+    try:
+        if candidate is None:
+            card.image_search_query = query
+            session.flush()
+        else:
+            VocabularyCardRepository(session).set_image(card, candidate, query)
+        session.commit()
+        return candidate is not None
+    except SQLAlchemyError as exc:
+        logger.warning("Card image metadata persistence failed: %s", type(exc).__name__)
+        session.rollback()
         return False
 
 
-def get_openverse_image_client(
+async def get_openverse_image_client(
     settings: Annotated[Settings, Depends(get_settings)],
-) -> OpenverseImageClient:
+) -> AsyncGenerator[OpenverseImageClient, None]:
     """FastAPI-overridable request dependency for Openverse image operations."""
-    return OpenverseImageClient(settings)
+    async with OpenverseImageClient(settings) as client:
+        yield client

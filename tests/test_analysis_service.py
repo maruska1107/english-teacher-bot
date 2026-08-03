@@ -160,8 +160,9 @@ async def test_analysis_service_marks_lesson_failed_after_invalid_retry():
 
 
 class ConcurrentFakeImageClient:
-    def __init__(self, failing_terms: set[str] | None = None) -> None:
+    def __init__(self, failing_terms: set[str] | None = None, session: Session | None = None) -> None:
         self.failing_terms = failing_terms or set()
+        self.session = session
         self.queries: list[str] = []
         self.active = 0
         self.max_active = 0
@@ -169,6 +170,8 @@ class ConcurrentFakeImageClient:
     async def search(self, query: str, offset: int = 0, limit: int = 3):
         import asyncio
 
+        if self.session is not None:
+            assert not self.session.in_transaction(), "DB transaction must not remain open during external await"
         self.queries.append(query)
         self.active += 1
         self.max_active = max(self.max_active, self.active)
@@ -227,7 +230,7 @@ async def test_analysis_enriches_only_new_cards_with_limited_concurrency_and_iso
         {"term": term, "translation_ru": translation, "definition_en": f"Definition for {term}"}
         for term, translation in [("apple", "яблоко"), ("banana", "банан"), ("cherry", "вишня")]
     ]
-    fake = ConcurrentFakeImageClient(failing_terms={"banana"})
+    fake = ConcurrentFakeImageClient(failing_terms={"banana"}, session=session)
     settings = Settings(
         app_env="test",
         openai_model="gpt-test-model",
@@ -245,14 +248,72 @@ async def test_analysis_enriches_only_new_cards_with_limited_concurrency_and_iso
     cards = {card.term: card for card in session.query(VocabularyCard).all()}
     assert fake.max_active == 2
     assert set(fake.queries) == {
-        "apple Definition for apple",
-        "banana Definition for banana",
-        "cherry Definition for cherry",
+        "apple",
+        "banana",
+        "cherry",
     }
     assert cards["apple"].image_url == "https://images.test/apple.jpg"
     assert cards["cherry"].image_url == "https://images.test/cherry.jpg"
     assert cards["banana"].image_url is None
-    assert cards["banana"].image_search_query == "banana Definition for banana"
+    assert cards["banana"].image_search_query == "banana"
     assert cards["existing"].image_search_query is None
     assert session.get(Lesson, lesson.id).processing_status == "analyzed"
     assert session.query(LessonAnalysis).filter_by(lesson_id=lesson.id).count() == 1
+
+
+async def test_analysis_survives_optional_image_commit_failure_and_rolls_back(monkeypatch):
+    from sqlalchemy.exc import SQLAlchemyError
+
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    profile = LearningProfile(
+        teacher_user_id=teacher.id,
+        name="B1",
+        profile_type="group",
+        card_publish_mode="manual_review",
+    )
+    session.add(profile)
+    session.flush()
+    lesson = Lesson(
+        teacher_user_id=teacher.id,
+        learning_profile_id=profile.id,
+        meeting_id="optional-db-failure",
+        meeting_uuid="uuid-optional-db-failure",
+        transcript="lesson transcript",
+        processing_status="transcript_ready",
+    )
+    session.add(lesson)
+    session.commit()
+    real_commit = session.commit
+    real_rollback = session.rollback
+    commit_calls = 0
+    rollback_calls = 0
+
+    def flaky_commit():
+        nonlocal commit_calls
+        commit_calls += 1
+        if commit_calls == 2:
+            raise SQLAlchemyError("optional metadata commit failed")
+        real_commit()
+
+    def tracked_rollback():
+        nonlocal rollback_calls
+        rollback_calls += 1
+        real_rollback()
+
+    monkeypatch.setattr(session, "commit", flaky_commit)
+    monkeypatch.setattr(session, "rollback", tracked_rollback)
+    analysis = await AnalysisService(
+        session=session,
+        settings=Settings(app_env="test", openai_model="gpt-test-model", openverse_images_enabled=True),
+        llm_client=FakeLLMClient([valid_analysis_json()]),
+        image_client=ConcurrentFakeImageClient(session=session),
+    ).analyze_lesson(lesson.id)
+
+    assert analysis.lesson_id == lesson.id
+    assert rollback_calls == 1
+    assert session.get(Lesson, lesson.id).processing_status == "analyzed"
+    assert session.query(LessonAnalysis).filter_by(lesson_id=lesson.id).count() == 1
+    assert session.query(VocabularyCard).filter_by(lesson_id=lesson.id).count() == 1

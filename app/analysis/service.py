@@ -14,7 +14,9 @@ from app.schemas.analysis import LessonAnalysisResult
 from app.services.openverse_images import (
     OpenverseImageClient,
     OpenverseImageClientProtocol,
-    enrich_card_image,
+    build_image_query,
+    lookup_card_image,
+    persist_card_image_result,
 )
 
 
@@ -56,7 +58,7 @@ class AnalysisService:
         self.session = session
         self.settings = settings
         self.llm_client = llm_client or OpenAIJsonClient(settings)
-        self.image_client = image_client if image_client is not None else OpenverseImageClient(settings)
+        self.image_client = image_client
 
     async def analyze_lesson(self, lesson_id: int) -> LessonAnalysis:
         lesson = self.session.get(Lesson, lesson_id)
@@ -101,11 +103,11 @@ class AnalysisService:
             analysis.model = self.settings.openai_model
             analysis.prompt_version = PROMPT_VERSION
         new_cards = self._save_draft_vocabulary_cards(lesson, result)
+        image_queries = [(card, build_image_query(card)) for card in new_cards]
         lesson.processing_status = "analyzed"
         lesson.processing_error = None
         self.session.commit()
-        await self._enrich_new_cards(new_cards)
-        self.session.commit()
+        await self._enrich_new_cards(image_queries)
         return analysis
 
     def _save_draft_vocabulary_cards(
@@ -120,16 +122,25 @@ class AnalysisService:
             cards=[card.model_dump(mode="json") for card in result.vocabulary_cards],
         )
 
-    async def _enrich_new_cards(self, cards: list[VocabularyCard]) -> None:
-        if not cards or not self.settings.openverse_images_enabled:
+    async def _enrich_new_cards(self, card_queries: list[tuple[VocabularyCard, str]]) -> None:
+        if not card_queries or not self.settings.openverse_images_enabled:
             return
-        semaphore = asyncio.Semaphore(max(1, self.settings.openverse_batch_concurrency))
+        semaphore = asyncio.Semaphore(self.settings.openverse_batch_concurrency)
 
-        async def enrich(card: VocabularyCard) -> None:
+        async def lookup(query: str, client: OpenverseImageClientProtocol):
             async with semaphore:
-                await enrich_card_image(self.session, card, self.settings, self.image_client)
+                return await lookup_card_image(query, self.settings, client)
 
-        await asyncio.gather(*(enrich(card) for card in cards))
+        async def lookup_and_persist(client: OpenverseImageClientProtocol) -> None:
+            results = await asyncio.gather(*(lookup(query, client) for _, query in card_queries))
+            for (card, _), (query, candidate) in zip(card_queries, results, strict=True):
+                persist_card_image_result(self.session, card, query, candidate)
+
+        if self.image_client is not None:
+            await lookup_and_persist(self.image_client)
+        else:
+            async with OpenverseImageClient(self.settings) as client:
+                await lookup_and_persist(client)
 
     def _mark_failed(self, lesson: Lesson, message: str) -> None:
         lesson.processing_status = "failed"

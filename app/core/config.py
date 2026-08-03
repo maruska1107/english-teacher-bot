@@ -1,7 +1,8 @@
 from functools import lru_cache
 from typing import Annotated
+from urllib.parse import urlsplit
 
-from pydantic import Field, PostgresDsn, SecretStr, computed_field
+from pydantic import Field, PostgresDsn, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,10 +45,33 @@ class Settings(BaseSettings):
 
     openverse_images_enabled: bool = True
     openverse_api_base_url: str = "https://api.openverse.org/v1"
-    openverse_timeout_seconds: float = 4.0
-    openverse_result_page_size: int = 3
-    openverse_batch_concurrency: int = 2
+    openverse_timeout_seconds: float = Field(default=4.0, gt=0, le=30, allow_inf_nan=False)
+    openverse_result_page_size: int = Field(default=3, ge=1, le=50)
+    openverse_batch_concurrency: int = Field(default=2, ge=1, le=10)
     openverse_user_agent: str = "EnglishTutorAI/0.1 (support@englishtutorai.ru)"
+
+    @field_validator("openverse_api_base_url")
+    @classmethod
+    def validate_openverse_api_base_url(cls, value: str) -> str:
+        normalized = value.strip().rstrip("/")
+        if not normalized or len(normalized) > 2048:
+            raise ValueError("Openverse API base URL must be between 1 and 2048 characters")
+        try:
+            parsed = urlsplit(normalized)
+            hostname = parsed.hostname
+        except ValueError as exc:
+            raise ValueError("Openverse API base URL is invalid") from exc
+        if parsed.scheme != "https" or not hostname:
+            raise ValueError("Openverse API base URL must be an absolute HTTPS URL with a host")
+        return normalized
+
+    @field_validator("openverse_user_agent")
+    @classmethod
+    def validate_openverse_user_agent(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized or len(normalized) > 255:
+            raise ValueError("Openverse user agent must be between 1 and 255 characters")
+        return normalized
 
     @computed_field  # type: ignore[prop-decorator]
     @property
