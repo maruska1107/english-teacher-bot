@@ -17,7 +17,7 @@ Use the public Openverse Images API. Requests identify the application with this
 
 `EnglishTutorAI/0.1 (support@englishtutorai.ru)`
 
-Search uses the English term plus available English definition, source phrase, or example context. Russian translation is not required in the external query. Search must have a short timeout and must never make card creation fail.
+Search uses only the vocabulary `term`. Definitions, source phrases, examples, Russian translations, and lesson-derived context are not sent to the external provider. Search must have a short timeout and must never make card creation fail.
 
 The application does not claim that Openverse owns the media. It preserves the provider's source URL, creator, and license metadata.
 
@@ -110,7 +110,7 @@ Openverse failure must degrade to no image. Respect rate-limit responses and do 
 
 ## Security and Privacy
 
-Do not send student names, teacher names, Telegram IDs, lesson IDs, or Russian personal context to Openverse. Queries contain only vocabulary text and English learning context.
+Do not send student names, teacher names, Telegram IDs, lesson IDs, definitions, examples, source phrases, translations, or other lesson context to Openverse. Queries contain only the vocabulary `term`.
 
 Escape attribution text in both WebApps. Validate external URLs as HTTPS before returning or storing them. Do not proxy arbitrary URLs through the backend.
 

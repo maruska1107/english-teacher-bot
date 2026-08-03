@@ -16,7 +16,7 @@
 - Allow only Openverse licenses `cc0`, `pdm`, `by`, and `by-sa` and HTTPS URLs.
 - Always preserve and display creator/source/license attribution; creator may be absent only when Openverse omits it.
 - Never send teacher/student identity or Telegram data to Openverse.
-- Openverse errors, timeouts, malformed responses, empty results, and `429` responses must not fail card creation.
+- Openverse errors, timeouts, malformed responses, empty results, database errors during optional enrichment, and `429` responses must not fail card creation.
 - Students must never trigger Openverse API requests.
 - Teacher image mutations require ownership and `draft` status.
 - Student image cards use height `460px`, image height `126px`, and zero geometry delta on flip.
@@ -174,7 +174,7 @@ git commit -m "feat: store vocabulary card image metadata"
 Use `httpx.MockTransport` and assert:
 
 ```python
-assert build_image_query(card) == "journey An act of travelling. journey"
+assert build_image_query(card) == "journey"
 assert request.headers["user-agent"] == "EnglishTutorAI/0.1 (support@englishtutorai.ru)"
 assert request.url.params["license_type"] == "commercial"
 assert request.url.params["license"] == "cc0,pdm,by,by-sa"
@@ -206,7 +206,7 @@ openverse_batch_concurrency: int = 2
 openverse_user_agent: str = "EnglishTutorAI/0.1 (support@englishtutorai.ru)"
 ```
 
-`search` maps `offset` to `page = offset // limit + 1`, sends `q`, `page`, `page_size`, `license_type=commercial`, and the explicit license allowlist. Catch `httpx.TimeoutException`, `httpx.HTTPError`, JSON/value errors, and non-200/`429` responses; log a short warning and return no candidates.
+`search` maps `offset` to `page = offset // limit + 1`, sends `q`, `page`, `page_size`, `license_type=commercial`, and the explicit license allowlist. Catch `httpx.HTTPError`, JSON/value errors, and non-200/`429` responses; log a short warning and return no candidates. Process and return no more than the effective requested limit even if an upstream response contains extra rows.
 
 `get(image_id)` URL-quotes the ID, fetches `/images/{id}/`, and applies the same candidate validator. Candidate extraction prefers `thumbnail`, then `url`, and requires HTTPS `foreign_landing_url`.
 
@@ -228,7 +228,7 @@ async def enrich_card_image(session, card, settings, client) -> bool:
 
 For manual creation, convert `create_card` to `async def`, commit the base card first, then call enrichment and commit again. In tests, set `openverse_images_enabled=False` in existing helpers; add one explicit test using `app.dependency_overrides[get_openverse_image_client]` with a fake client.
 
-For lesson analysis, inject an optional image client into `AnalysisService`, have `_save_draft_vocabulary_cards` return the created cards, commit analysis/cards first, then enrich new cards with an `asyncio.Semaphore(settings.openverse_batch_concurrency)`. Catch each card's failure independently and commit successful metadata afterward. Existing tests use `openverse_images_enabled=False`; one new test injects a fake client and verifies only newly returned cards are enriched.
+For lesson analysis, inject an optional image client into `AnalysisService`, have `_save_draft_vocabulary_cards` return the created cards, and commit analysis/cards first. Gather only external lookups under `asyncio.Semaphore(settings.openverse_batch_concurrency)` without sharing a SQLAlchemy session across coroutines; then apply each result sequentially. Isolate each optional metadata transaction with rollback on database failure. Existing tests use `openverse_images_enabled=False`; one new test injects a fake client and verifies only newly returned cards are enriched.
 
 - [ ] **Step 5: Run focused tests and verify GREEN**
 
