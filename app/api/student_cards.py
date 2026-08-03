@@ -44,6 +44,12 @@ def card_to_response(card: VocabularyCard, progress_status: str) -> StudentCardR
         translation_ru=card.translation_ru,
         example_sentence=card.example_sentence,
         status=progress_status,
+        image_url=card.image_url,
+        image_source_url=card.image_source_url,
+        image_creator=card.image_creator,
+        image_license=card.image_license,
+        image_license_url=card.image_license_url,
+        image_search_query=card.image_search_query,
     )
 
 

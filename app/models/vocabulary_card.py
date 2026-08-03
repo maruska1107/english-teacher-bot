@@ -19,6 +19,12 @@ class VocabularyCard(Base):
     example_sentence: Mapped[str | None] = mapped_column(Text)
     source_phrase: Mapped[str | None] = mapped_column(Text)
     level: Mapped[str | None] = mapped_column(String(50))
+    image_url: Mapped[str | None] = mapped_column(Text)
+    image_source_url: Mapped[str | None] = mapped_column(Text)
+    image_creator: Mapped[str | None] = mapped_column(String(255))
+    image_license: Mapped[str | None] = mapped_column(String(50))
+    image_license_url: Mapped[str | None] = mapped_column(Text)
+    image_search_query: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(50), default="draft", index=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

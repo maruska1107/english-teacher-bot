@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import LearningProfileMember, StudentCardProgress, VocabularyCard
-from app.schemas.cards import VocabularyCardCreate, VocabularyCardUpdate
+from app.schemas.cards import CardImageCandidate, VocabularyCardCreate, VocabularyCardUpdate
 
 
 def _strip_optional(value: str | None) -> str | None:
@@ -125,6 +125,30 @@ class VocabularyCardRepository:
         card.status = status
         if status == "published" and card.published_at is None:
             card.published_at = datetime.now(UTC)
+        self.session.flush()
+        return card
+
+    def set_image(
+        self,
+        card: VocabularyCard,
+        candidate: CardImageCandidate,
+        search_query: str,
+    ) -> VocabularyCard:
+        card.image_url = candidate.image_url
+        card.image_source_url = candidate.source_url
+        card.image_creator = candidate.creator
+        card.image_license = candidate.license
+        card.image_license_url = candidate.license_url
+        card.image_search_query = search_query
+        self.session.flush()
+        return card
+
+    def clear_image(self, card: VocabularyCard) -> VocabularyCard:
+        card.image_url = None
+        card.image_source_url = None
+        card.image_creator = None
+        card.image_license = None
+        card.image_license_url = None
         self.session.flush()
         return card
 

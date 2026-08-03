@@ -1,4 +1,24 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+
+class CardImageCandidate(BaseModel):
+    image_id: str
+    image_url: str
+    source_url: str
+    creator: str | None = None
+    license: Literal["cc0", "pdm", "by", "by-sa"]
+    license_url: str | None = None
+
+
+class CardImageOptionsResponse(BaseModel):
+    options: list[CardImageCandidate]
+    next_offset: int
+
+
+class CardImageSelection(BaseModel):
+    image_id: str = Field(min_length=1, max_length=100)
 
 
 class VocabularyCardRead(BaseModel):
@@ -11,6 +31,12 @@ class VocabularyCardRead(BaseModel):
     source_phrase: str | None = None
     level: str | None = None
     status: str
+    image_url: str | None = None
+    image_source_url: str | None = None
+    image_creator: str | None = None
+    image_license: str | None = None
+    image_license_url: str | None = None
+    image_search_query: str | None = None
 
 
 class VocabularyCardListResponse(BaseModel):

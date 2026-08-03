@@ -116,8 +116,44 @@ def test_student_can_list_only_published_cards_from_own_profiles():
                 "translation_ru": "путешествие",
                 "example_sentence": "The journey was long.",
                 "status": "new",
+                "image_url": None,
+                "image_source_url": None,
+                "image_creator": None,
+                "image_license": None,
+                "image_license_url": None,
+                "image_search_query": None,
             }
         ]
+    }
+
+
+def test_student_card_list_serializes_populated_image_metadata():
+    session = make_session()
+    _, visible_card, _ = seed_student_cards(session)
+    visible_card.image_url = "https://api.openverse.org/v1/images/openverse-1/thumb/"
+    visible_card.image_source_url = "https://example.org/source"
+    visible_card.image_creator = "Alice"
+    visible_card.image_license = "by"
+    visible_card.image_license_url = "https://creativecommons.org/licenses/by/4.0/"
+    visible_card.image_search_query = "journey travel"
+    session.commit()
+    client = make_client(session)
+
+    response = client.get("/api/student/cards", headers={"x-telegram-init-data": signed_init_data(3003)})
+
+    assert response.status_code == 200
+    assert response.json()["cards"][0] == {
+        "id": visible_card.id,
+        "term": "journey",
+        "translation_ru": "путешествие",
+        "example_sentence": "The journey was long.",
+        "status": "new",
+        "image_url": "https://api.openverse.org/v1/images/openverse-1/thumb/",
+        "image_source_url": "https://example.org/source",
+        "image_creator": "Alice",
+        "image_license": "by",
+        "image_license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "image_search_query": "journey travel",
     }
 
 

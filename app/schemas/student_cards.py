@@ -7,6 +7,12 @@ class StudentCardRead(BaseModel):
     translation_ru: str
     example_sentence: str | None = None
     status: str
+    image_url: str | None = None
+    image_source_url: str | None = None
+    image_creator: str | None = None
+    image_license: str | None = None
+    image_license_url: str | None = None
+    image_search_query: str | None = None
 
 
 class StudentCardListResponse(BaseModel):

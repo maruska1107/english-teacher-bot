@@ -36,6 +36,12 @@ def card_to_response(card: VocabularyCard) -> VocabularyCardRead:
         source_phrase=card.source_phrase,
         level=card.level,
         status=card.status,
+        image_url=card.image_url,
+        image_source_url=card.image_source_url,
+        image_creator=card.image_creator,
+        image_license=card.image_license,
+        image_license_url=card.image_license_url,
+        image_search_query=card.image_search_query,
     )
 
 

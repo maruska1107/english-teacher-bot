@@ -118,6 +118,12 @@ def test_teacher_can_list_draft_cards_for_profile():
                 "source_phrase": "journey",
                 "level": "B1",
                 "status": "draft",
+                "image_url": None,
+                "image_source_url": None,
+                "image_creator": None,
+                "image_license": None,
+                "image_license_url": None,
+                "image_search_query": None,
             }
         ]
     }
@@ -238,6 +244,56 @@ def test_vocabulary_repository_can_create_delete_and_batch_publish_cards():
     assert session.get(VocabularyCard, published_card.id) is None
     assert session.get(VocabularyCard, draft_card.id).status == "published"
     assert session.get(VocabularyCard, manual_card.id).status == "published"
+
+
+def test_vocabulary_repository_can_set_and_clear_image_metadata():
+    session = make_session()
+    _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
+
+    from app.repositories.vocabulary_cards import VocabularyCardRepository
+    from app.schemas.cards import CardImageCandidate
+
+    repository = VocabularyCardRepository(session)
+    candidate = CardImageCandidate(
+        image_id="openverse-1",
+        image_url="https://api.openverse.org/v1/images/openverse-1/thumb/",
+        source_url="https://example.org/source",
+        creator="Alice",
+        license="by",
+        license_url="https://creativecommons.org/licenses/by/4.0/",
+    )
+
+    repository.set_image(draft_card, candidate, "journey travel")
+
+    assert draft_card.image_url == candidate.image_url
+    assert draft_card.image_source_url == candidate.source_url
+    assert draft_card.image_creator == "Alice"
+    assert draft_card.image_license == "by"
+    assert draft_card.image_license_url == candidate.license_url
+    assert draft_card.image_search_query == "journey travel"
+
+    repository.clear_image(draft_card)
+
+    assert draft_card.image_url is None
+    assert draft_card.image_source_url is None
+    assert draft_card.image_creator is None
+    assert draft_card.image_license is None
+    assert draft_card.image_license_url is None
+    assert draft_card.image_search_query == "journey travel"
+
+
+def test_card_image_selection_validates_image_id_length():
+    from pydantic import ValidationError
+
+    from app.schemas.cards import CardImageSelection
+
+    CardImageSelection(image_id="openverse-1")
+    for invalid_image_id in ("", "x" * 101):
+        try:
+            CardImageSelection(image_id=invalid_image_id)
+        except ValidationError:
+            continue
+        raise AssertionError("invalid image_id was accepted")
 
 
 def test_teacher_can_list_card_profiles_with_counts():
