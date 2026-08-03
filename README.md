@@ -53,11 +53,15 @@ curl http://localhost:8080/health
 curl http://localhost:8080/ready
 ```
 
-## Development tests
+## Development and pre-deploy tests
+
+The canonical contributor and pre-deploy gate is portable across the main checkout and Git worktrees:
 
 ```bash
-python -m pytest tests -q
+./scripts/test_all.sh
 ```
+
+It requires Docker and Node.js 18 or newer. The script builds an isolated Python test image, source-mounts the current checkout, runs the complete Python suite and Ruff, and always runs every `tests/js/*.test.js` file with Node's built-in test runner. Node is a host-side test dependency only and is not added to the production backend image.
 
 ## Telegram commands
 

@@ -89,7 +89,10 @@
       return false;
     }
 
+    const restoreKeyboardFocus = event.type === "keydown" && card.ownerDocument?.activeElement === card;
+    const cardContainer = restoreKeyboardFocus ? card.parentElement : null;
     flip();
+    if (restoreKeyboardFocus) cardContainer?.querySelector?.("[data-flashcard]")?.focus?.();
     return true;
   }
 

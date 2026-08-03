@@ -121,6 +121,48 @@ test('click, Enter, and Space activate a card while link keys do not bubble into
   assert.equal(linkFlips, 0);
 });
 
+test('keyboard flips restore focus to the newly rendered card for repeated activation', () => {
+  let focusedCard = null;
+  let currentCard;
+  const container = {
+    querySelector(selector) {
+      assert.equal(selector, '[data-flashcard]');
+      return currentCard;
+    },
+  };
+  const makeCard = () => ({
+    dataset: { flashcard: '' },
+    ownerDocument: { get activeElement() { return focusedCard; } },
+    parentElement: container,
+    closest(selector) {
+      if (selector === '[data-flashcard]') return this;
+      return null;
+    },
+    focus() { focusedCard = this; },
+  });
+  currentCard = makeCard();
+  currentCard.focus();
+
+  for (const key of ['Enter', ' ']) {
+    const oldCard = currentCard;
+    let prevented = false;
+    const activated = handleFlashcardActivation(
+      {
+        type: 'keydown',
+        key,
+        target: oldCard,
+        preventDefault() { prevented = true; },
+      },
+      () => { currentCard = makeCard(); },
+    );
+
+    assert.equal(activated, true);
+    assert.equal(prevented, true);
+    assert.notEqual(currentCard, oldCard);
+    assert.equal(focusedCard, currentCard);
+  }
+});
+
 test('image errors reveal a stable placeholder in the existing reserved region', () => {
   const classes = new Set();
   const placeholder = { hidden: true };
