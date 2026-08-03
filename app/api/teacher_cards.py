@@ -1,6 +1,8 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from pydantic import ConfigDict
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -12,6 +14,8 @@ from app.repositories.vocabulary_cards import VocabularyCardRepository
 from app.schemas.cards import (
     BatchPublishCardsRequest,
     BatchPublishCardsResponse,
+    CardImageOptionsResponse,
+    CardImageSelection,
     TeacherCardProfileListResponse,
     TeacherCardProfileRead,
     VocabularyCardCreate,
@@ -29,6 +33,11 @@ from app.telegram.webapp_auth import TelegramWebAppAuthError, verify_telegram_we
 
 router = APIRouter(prefix="/api/teacher/cards", tags=["teacher-cards"])
 profiles_router = APIRouter(prefix="/api/teacher/card-profiles", tags=["teacher-card-profiles"])
+logger = logging.getLogger(__name__)
+
+
+class StrictCardImageSelection(CardImageSelection):
+    model_config = ConfigDict(extra="forbid")
 
 
 def card_to_response(card: VocabularyCard) -> VocabularyCardRead:
@@ -89,6 +98,15 @@ def get_teacher_profile_or_404(session: Session, teacher: User, profile_id: int)
     return profile
 
 
+def get_teacher_draft_card_or_error(session: Session, teacher: User, card_id: int) -> VocabularyCard:
+    card = VocabularyCardRepository(session).get_for_teacher(teacher.id, card_id)
+    if card is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+    if card.status != "draft":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only draft cards can change images")
+    return card
+
+
 @profiles_router.get("", response_model=TeacherCardProfileListResponse)
 def list_card_profiles(
     session: Annotated[Session, Depends(get_db_session)],
@@ -144,6 +162,59 @@ def update_card(
     if card is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
     card = repository.update_card(card, payload)
+    session.commit()
+    return card_to_response(card)
+
+
+@router.get("/{card_id}/image-options", response_model=CardImageOptionsResponse)
+async def list_card_image_options(
+    card_id: int,
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    image_client: Annotated[OpenverseImageClient, Depends(get_openverse_image_client)],
+    offset: Annotated[int, Query()] = 0,
+) -> CardImageOptionsResponse:
+    card = get_teacher_draft_card_or_error(session, teacher, card_id)
+    clamped_offset = min(max(offset, 0), 300)
+    query = card.image_search_query or build_image_query(card)
+    try:
+        options = await image_client.search(query, offset=clamped_offset, limit=3)
+    except Exception as exc:
+        logger.warning("Teacher image options lookup failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Image provider unavailable") from exc
+    return CardImageOptionsResponse(options=options[:3], next_offset=clamped_offset + 3)
+
+
+@router.put("/{card_id}/image", response_model=VocabularyCardRead)
+async def select_card_image(
+    card_id: int,
+    payload: StrictCardImageSelection,
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    image_client: Annotated[OpenverseImageClient, Depends(get_openverse_image_client)],
+) -> VocabularyCardRead:
+    card = get_teacher_draft_card_or_error(session, teacher, card_id)
+    try:
+        candidate = await image_client.get(payload.image_id)
+    except Exception as exc:
+        logger.warning("Teacher image selection lookup failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Image is unavailable") from exc
+    if candidate is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Image is unavailable")
+    query = card.image_search_query or build_image_query(card)
+    VocabularyCardRepository(session).set_image(card, candidate, query)
+    session.commit()
+    return card_to_response(card)
+
+
+@router.delete("/{card_id}/image", response_model=VocabularyCardRead)
+def clear_card_image(
+    card_id: int,
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+) -> VocabularyCardRead:
+    card = get_teacher_draft_card_or_error(session, teacher, card_id)
+    VocabularyCardRepository(session).clear_image(card)
     session.commit()
     return card_to_response(card)
 

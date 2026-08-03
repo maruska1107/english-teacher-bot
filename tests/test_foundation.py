@@ -132,6 +132,25 @@ def test_teacher_cards_webapp_page_is_available():
     assert "border-color: #d8d2e5" in response.text
     assert "input:focus, textarea:focus" in response.text
     assert "rgba(116, 110, 159, 0.14)" in response.text
+    assert "Заменить картинку" in response.text
+    assert "Убрать картинку" in response.text
+    assert "Показать ещё" in response.text
+    assert "Фото:" in response.text
+    assert "imageOptionsState = new Map()" in response.text
+    assert "safeHttpsUrl" in response.text
+    assert "option.image_id" in response.text
+    assert 'JSON.stringify({ image_id: option.image_id })' in response.text
+    assert "replaceDraftCard" in response.text
+    assert "syncDraftEditsFromDom" in response.text
+    assert "escapeHtml(card.image_creator)" in response.text
+    assert "escapeHtml(option.creator)" in response.text
+    assert 'data-action="image-fallback"' not in response.text
+    assert ".card-thumbnail" in response.text
+    assert "min-height: 180px" in response.text
+    published_template = response.text.split("function publishedCardTemplate", maxsplit=1)[1].split(
+        "function addWordPanel", maxsplit=1
+    )[0]
+    assert "${cardImageTemplate(card)}" in published_template
 
     head_response = client.head("/teacher/cards")
     assert head_response.status_code == 200
