@@ -1,9 +1,12 @@
+import json
+import subprocess
 from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from app.api.teacher_webapp import SCRIPT
 from app.core.config import Settings
 from app.db.base import Base
 from app.main import create_app
@@ -154,6 +157,41 @@ def test_teacher_cards_webapp_page_is_available():
 
     head_response = client.head("/teacher/cards")
     assert head_response.status_code == 200
+
+
+def test_teacher_image_options_pagination_replaces_batches_and_stops_after_offset_300():
+    helper_marker = "function imageOptionsPage(previous, data, offset) {"
+    request_offset_marker = "function imageOptionsRequestOffset(state, nextPage) {"
+    assert helper_marker in SCRIPT
+    assert request_offset_marker in SCRIPT
+
+    helper_source = helper_marker + SCRIPT.split(helper_marker, maxsplit=1)[1].split("\n}\n", maxsplit=1)[0] + "\n}"
+    request_offset_source = (
+        request_offset_marker
+        + SCRIPT.split(request_offset_marker, maxsplit=1)[1].split("\n}\n", maxsplit=1)[0]
+        + "\n}"
+    )
+    node_program = f"""
+const assert = require("node:assert/strict");
+{request_offset_source}
+{helper_source}
+const first = imageOptionsPage({{ options: [] }}, {{ options: [1, 2, 3, 99], next_offset: 3 }}, 0);
+assert.deepEqual(first.options, [1, 2, 3]);
+const second = imageOptionsPage(first, {{ options: [4, 5, 6], next_offset: 6 }}, 3);
+assert.deepEqual(second.options, [4, 5, 6]);
+const last = imageOptionsPage(second, {{ options: [7, 8, 9], next_offset: 303 }}, 300);
+assert.equal(last.hasMore, false);
+assert.equal(imageOptionsRequestOffset(last, true), null);
+process.stdout.write(JSON.stringify({{ first, second, last }}));
+"""
+
+    result = subprocess.run(["node", "-e", node_program], check=True, capture_output=True, text=True)
+    states = json.loads(result.stdout)
+
+    assert len(states["first"]["options"]) == 3
+    assert states["second"]["options"] == [4, 5, 6]
+    assert states["last"]["nextOffset"] == 303
+    assert states["last"]["hasMore"] is False
 
 
 def test_student_cards_webapp_page_is_available():

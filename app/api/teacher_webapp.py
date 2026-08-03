@@ -507,27 +507,41 @@ function replaceDraftCard(updatedCard) {
   renderSelectedProfile();
 }
 
-async function loadImageOptions(cardId, append = false) {
-  syncDraftEditsFromDom();
+function imageOptionsRequestOffset(state, nextPage) {
+  if (!nextPage) return 0;
+  const offset = Number(state?.nextOffset);
+  return Number.isFinite(offset) && offset <= 300 ? offset : null;
+}
+
+function imageOptionsPage(previous, data, offset) {
+  const options = Array.isArray(data.options) ? data.options.slice(0, 3) : [];
+  const nextOffset = Number(data.next_offset || offset + 3);
+  return {
+    ...previous,
+    options,
+    nextOffset,
+    hasMore: options.length === 3 && nextOffset <= 300,
+    empty: options.length === 0,
+  };
+}
+
+async function loadImageOptions(cardId, nextPage = false) {
   const previous = imageOptionsState.get(cardId) || { open: true, options: [], nextOffset: 0 };
+  const offset = imageOptionsRequestOffset(previous, nextPage);
+  if (offset === null) return;
+  syncDraftEditsFromDom();
   const state = {
     ...previous,
     open: true,
     loading: true,
     error: "",
     empty: false,
-    options: append ? previous.options : [],
   };
   imageOptionsState.set(cardId, state);
   renderSelectedProfile();
   try {
-    const offset = append ? previous.nextOffset : 0;
     const data = await api(`/api/teacher/cards/${cardId}/image-options?offset=${offset}`);
-    const newOptions = Array.isArray(data.options) ? data.options : [];
-    state.options = append ? [...state.options, ...newOptions] : newOptions;
-    state.nextOffset = Number(data.next_offset || offset + 3);
-    state.hasMore = newOptions.length === 3 && state.nextOffset <= 303;
-    state.empty = state.options.length === 0;
+    Object.assign(state, imageOptionsPage(state, data, offset));
   } catch (_) {
     state.error = "Не удалось загрузить картинки. Попробуйте ещё раз.";
   } finally {
