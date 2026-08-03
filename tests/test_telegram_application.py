@@ -64,6 +64,9 @@ async def test_register_bot_commands_sets_telegram_command_menu():
         "dev_seed_data",
     ]
     assert all(command.description for command in BOT_COMMANDS)
+    assert next(command.description for command in BOT_COMMANDS if command.command == "dev_seed_data") == (
+        "Добавить тестовые карточки"
+    )
 
 
 async def test_bot_gateway_sends_webapp_button_with_reply_markup():

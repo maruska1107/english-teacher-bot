@@ -22,7 +22,7 @@ BOT_COMMANDS = (
     BotCommand("add_zoom_meeting", "Добавить Zoom-конференцию"),
     BotCommand("last_report", "Показать последний отчёт"),
     BotCommand("last_error", "Показать последнюю ошибку"),
-    BotCommand("dev_seed_data", "Создать тестовые данные"),
+    BotCommand("dev_seed_data", "Добавить тестовые карточки"),
 )
 
 
