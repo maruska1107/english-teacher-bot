@@ -14,7 +14,11 @@ from app.db.session import get_db_session
 from app.main import create_app
 from app.models import LearningProfile, User, VocabularyCard
 from app.schemas.cards import CardImageCandidate
-from app.services.openverse_images import get_openverse_image_client
+from app.services.openverse_images import (
+    OpenverseOperationResult,
+    OpenverseOperationStatus,
+    get_openverse_image_client,
+)
 
 
 def make_session() -> Session:
@@ -463,6 +467,333 @@ class FakeCreateImageClient:
 
     async def get(self, image_id: str):
         raise AssertionError("get should not be called")
+
+
+class FakeManageImageClient:
+    def __init__(
+        self,
+        *,
+        fail_search: bool = False,
+        fail_get: bool = False,
+        reject_get: bool = False,
+        session: Session | None = None,
+        during_search=None,
+        during_get=None,
+        search_pages: dict[int, list[CardImageCandidate]] | None = None,
+    ) -> None:
+        self.fail_search = fail_search
+        self.fail_get = fail_get
+        self.reject_get = reject_get
+        self.search_calls: list[tuple[str, int, int]] = []
+        self.get_calls: list[str] = []
+        self.session = session
+        self.during_search = during_search
+        self.during_get = during_get
+        self.search_pages = search_pages
+
+    async def search(self, query: str, offset: int = 0, limit: int = 3):
+        self.search_calls.append((query, offset, limit))
+        if self.fail_search:
+            raise RuntimeError("secret provider detail")
+        return [
+            CardImageCandidate(
+                image_id=f"image-{offset + index}",
+                image_url=f"https://images.test/{offset + index}.jpg",
+                source_url=f"https://source.test/{offset + index}",
+                creator=f"Creator {index}",
+                license="by",
+                license_url="https://creativecommons.org/licenses/by/4.0/",
+            )
+            for index in range(limit)
+        ]
+
+    async def get(self, image_id: str):
+        self.get_calls.append(image_id)
+        if self.fail_get:
+            raise RuntimeError("secret provider detail")
+        if self.reject_get:
+            return None
+        return CardImageCandidate(
+            image_id=image_id,
+            image_url=f"https://images.test/{image_id}.jpg",
+            source_url=f"https://source.test/{image_id}",
+            creator="Server Creator",
+            license="by-sa",
+            license_url="https://creativecommons.org/licenses/by-sa/4.0/",
+        )
+
+    async def search_strict(self, query: str, offset: int = 0, limit: int = 3):
+        if self.session is not None:
+            assert not self.session.in_transaction(), "teacher search must not hold a DB transaction"
+        if self.during_search:
+            self.during_search()
+        if self.fail_search:
+            return OpenverseOperationResult(status=OpenverseOperationStatus.UNAVAILABLE)
+        if self.search_pages is not None:
+            self.search_calls.append((query, offset, limit))
+            options = self.search_pages.get(offset, [])
+        else:
+            options = await self.search(query, offset, limit)
+        return OpenverseOperationResult(status=OpenverseOperationStatus.OK, value=options)
+
+    async def get_strict(self, image_id: str):
+        if self.session is not None:
+            assert not self.session.in_transaction(), "teacher selection must not hold a DB transaction"
+        if self.during_get:
+            self.during_get()
+        if self.fail_get:
+            return OpenverseOperationResult(status=OpenverseOperationStatus.UNAVAILABLE)
+        candidate = await self.get(image_id)
+        result_status = OpenverseOperationStatus.OK if candidate is not None else OpenverseOperationStatus.NOT_FOUND
+        return OpenverseOperationResult(status=result_status, value=candidate)
+
+
+def image_api_client(session: Session, fake: FakeManageImageClient) -> TestClient:
+    client = make_client(session)
+    client.app.dependency_overrides[get_openverse_image_client] = lambda: fake
+    return client
+
+
+def test_teacher_image_options_return_three_candidates_and_clamped_next_offset():
+    session = make_session()
+    _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
+    draft_card.image_search_query = "saved query"
+    session.commit()
+    fake = FakeManageImageClient()
+    client = image_api_client(session, fake)
+    headers = {"x-telegram-init-data": signed_init_data(1001)}
+
+    response = client.get(f"/api/teacher/cards/{draft_card.id}/image-options?offset=7", headers=headers)
+    low = client.get(f"/api/teacher/cards/{draft_card.id}/image-options?offset=-8", headers=headers)
+    high = client.get(f"/api/teacher/cards/{draft_card.id}/image-options?offset=999", headers=headers)
+
+    assert response.status_code == 200
+    assert len(response.json()["options"]) == 3
+    assert response.json()["next_offset"] == 10
+    assert low.json()["next_offset"] == 3
+    assert high.json()["next_offset"] == 303
+    assert fake.search_calls == [("saved query", 7, 3), ("saved query", 0, 3), ("saved query", 300, 3)]
+
+
+def test_teacher_image_options_build_query_when_card_has_none():
+    session = make_session()
+    _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
+    fake = FakeManageImageClient()
+    client = image_api_client(session, fake)
+
+    response = client.get(
+        f"/api/teacher/cards/{draft_card.id}/image-options",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+
+    assert response.status_code == 200
+    assert fake.search_calls == [("journey", 0, 3)]
+
+
+def test_teacher_selects_image_by_id_and_server_refetches_all_metadata():
+    session = make_session()
+    _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
+    fake = FakeManageImageClient()
+    client = image_api_client(session, fake)
+
+    response = client.put(
+        f"/api/teacher/cards/{draft_card.id}/image",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+        json={"image_id": "chosen"},
+    )
+
+    assert response.status_code == 200
+    assert fake.get_calls == ["chosen"]
+    assert response.json()["image_url"] == "https://images.test/chosen.jpg"
+    assert response.json()["image_creator"] == "Server Creator"
+    stored = session.get(VocabularyCard, draft_card.id)
+    assert stored.image_license == "by-sa"
+    assert stored.image_search_query == "journey"
+
+
+def test_teacher_image_selection_rejects_missing_arbitrary_or_provider_rejected_id():
+    session = make_session()
+    _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
+    fake = FakeManageImageClient(reject_get=True)
+    client = image_api_client(session, fake)
+    headers = {"x-telegram-init-data": signed_init_data(1001)}
+    path = f"/api/teacher/cards/{draft_card.id}/image"
+
+    missing = client.put(path, headers=headers, json={})
+    arbitrary = client.put(path, headers=headers, json={"image_url": "https://evil.test/image.jpg"})
+    extra_metadata = client.put(
+        path,
+        headers=headers,
+        json={"image_id": "chosen", "image_url": "https://evil.test/image.jpg"},
+    )
+    rejected = client.put(path, headers=headers, json={"image_id": "rejected"})
+
+    assert missing.status_code == 422
+    assert arbitrary.status_code == 422
+    assert extra_metadata.status_code == 422
+    assert rejected.status_code == 422
+    assert session.get(VocabularyCard, draft_card.id).image_url is None
+
+
+def test_teacher_image_selection_hides_provider_failure_detail():
+    session = make_session()
+    _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
+    client = image_api_client(session, FakeManageImageClient(fail_get=True))
+
+    response = client.put(
+        f"/api/teacher/cards/{draft_card.id}/image",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+        json={"image_id": "chosen"},
+    )
+
+    assert response.status_code == 502
+    assert "secret provider detail" not in response.text
+
+
+def test_teacher_image_options_provider_failure_is_502_but_genuine_empty_is_422():
+    session = make_session()
+    _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
+    headers = {"x-telegram-init-data": signed_init_data(1001)}
+    path = f"/api/teacher/cards/{draft_card.id}/image-options"
+
+    unavailable = image_api_client(session, FakeManageImageClient(fail_search=True)).get(path, headers=headers)
+    empty = image_api_client(session, FakeManageImageClient(search_pages={0: []})).get(path, headers=headers)
+
+    assert unavailable.status_code == 502
+    assert empty.status_code == 422
+
+
+def test_teacher_image_operations_end_read_transaction_and_revalidate_draft_after_provider_await():
+    session = make_session()
+    _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
+    card_id = draft_card.id
+    headers = {"x-telegram-init-data": signed_init_data(1001)}
+
+    def publish_during_provider_call():
+        card = session.get(VocabularyCard, card_id)
+        card.status = "published"
+        session.commit()
+
+    options_fake = FakeManageImageClient(session=session, during_search=publish_during_provider_call)
+    options = image_api_client(session, options_fake).get(
+        f"/api/teacher/cards/{card_id}/image-options", headers=headers
+    )
+    assert options.status_code == 409
+
+    session.get(VocabularyCard, card_id).status = "draft"
+    session.commit()
+    selection_fake = FakeManageImageClient(session=session, during_get=publish_during_provider_call)
+    selection = image_api_client(session, selection_fake).put(
+        f"/api/teacher/cards/{card_id}/image", headers=headers, json={"image_id": "chosen"}
+    )
+
+    assert selection.status_code == 409
+    assert session.get(VocabularyCard, card_id).image_url is None
+
+
+def test_teacher_image_options_exclude_current_and_fill_three_unique_from_following_pages():
+    session = make_session()
+    _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
+    draft_card.image_url = "https://images.test/current.jpg"
+    draft_card.image_source_url = "https://source.test/current"
+    session.commit()
+
+    def candidate(image_id: str, image_url: str, source_url: str) -> CardImageCandidate:
+        return CardImageCandidate(
+            image_id=image_id,
+            image_url=image_url,
+            source_url=source_url,
+            creator=None,
+            license="by",
+            license_url=None,
+        )
+
+    pages = {
+        0: [
+            candidate("current", "https://images.test/current.jpg", "https://source.test/other"),
+            candidate("one", "https://images.test/one.jpg", "https://source.test/one"),
+            candidate("one-copy", "https://images.test/one.jpg", "https://source.test/one-copy"),
+        ],
+        3: [
+            candidate("source-current", "https://images.test/other.jpg", "https://source.test/current"),
+            candidate("two", "https://images.test/two.jpg", "https://source.test/two"),
+            candidate("three", "https://images.test/three.jpg", "https://source.test/three"),
+        ],
+    }
+    fake = FakeManageImageClient(search_pages=pages)
+    response = image_api_client(session, fake).get(
+        f"/api/teacher/cards/{draft_card.id}/image-options",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+
+    assert response.status_code == 200
+    assert [item["image_id"] for item in response.json()["options"]] == ["one", "two", "three"]
+    assert response.json()["next_offset"] == 6
+    assert fake.search_calls == [("journey", 0, 3), ("journey", 3, 3)]
+
+
+def test_teacher_removes_image_but_retains_search_query():
+    session = make_session()
+    _, _, draft_card, _ = seed_teacher_profile_and_cards(session)
+    draft_card.image_url = "https://images.test/old.jpg"
+    draft_card.image_source_url = "https://source.test/old"
+    draft_card.image_creator = "Old Creator"
+    draft_card.image_license = "by"
+    draft_card.image_license_url = "https://creativecommons.org/licenses/by/4.0/"
+    draft_card.image_search_query = "retained query"
+    session.commit()
+    client = image_api_client(session, FakeManageImageClient())
+
+    response = client.delete(
+        f"/api/teacher/cards/{draft_card.id}/image",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+
+    assert response.status_code == 200
+    for field in ("image_url", "image_source_url", "image_creator", "image_license", "image_license_url"):
+        assert response.json()[field] is None
+    assert response.json()["image_search_query"] == "retained query"
+
+
+def test_teacher_image_endpoints_hide_other_teacher_card_and_reject_published_card():
+    session = make_session()
+    _, _, draft_card, published_card = seed_teacher_profile_and_cards(session)
+    fake = FakeManageImageClient()
+    client = image_api_client(session, fake)
+    client.app.dependency_overrides[get_settings] = lambda: Settings(
+        app_env="test",
+        telegram_bot_token="test-bot-token",
+        allowed_telegram_teacher_ids="1001,2002",
+        openverse_images_enabled=False,
+    )
+    session.add(User(telegram_user_id=2002, role="teacher", is_active=True))
+    session.commit()
+    other_headers = {"x-telegram-init-data": signed_init_data(2002)}
+    owner_headers = {"x-telegram-init-data": signed_init_data(1001)}
+
+    other_responses = [
+        client.get(f"/api/teacher/cards/{draft_card.id}/image-options", headers=other_headers),
+        client.put(
+            f"/api/teacher/cards/{draft_card.id}/image",
+            headers=other_headers,
+            json={"image_id": "chosen"},
+        ),
+        client.delete(f"/api/teacher/cards/{draft_card.id}/image", headers=other_headers),
+    ]
+    published_responses = [
+        client.get(f"/api/teacher/cards/{published_card.id}/image-options", headers=owner_headers),
+        client.put(
+            f"/api/teacher/cards/{published_card.id}/image",
+            headers=owner_headers,
+            json={"image_id": "chosen"},
+        ),
+        client.delete(f"/api/teacher/cards/{published_card.id}/image", headers=owner_headers),
+    ]
+
+    assert [response.status_code for response in other_responses] == [404, 404, 404]
+    assert [response.status_code for response in published_responses] == [409, 409, 409]
+    assert fake.search_calls == []
+    assert fake.get_calls == []
 
 
 def test_manual_create_commits_draft_then_enriches_with_overridden_client():

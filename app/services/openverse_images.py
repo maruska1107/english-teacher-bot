@@ -1,10 +1,12 @@
 import logging
 from collections.abc import AsyncGenerator
-from typing import Annotated, Any, Protocol
+from dataclasses import dataclass
+from enum import Enum
+from typing import Annotated, Any, Generic, Protocol, TypeVar
 from urllib.parse import quote
 
 import httpx
-from fastapi import Depends
+from fastapi import Depends, status
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -26,6 +28,31 @@ class OpenverseImageClientProtocol(Protocol):
     async def search(self, query: str, offset: int = 0, limit: int = 3) -> list[CardImageCandidate]: ...
 
     async def get(self, image_id: str) -> CardImageCandidate | None: ...
+
+
+class OpenverseOperationStatus(str, Enum):
+    OK = "ok"
+    NOT_FOUND = "not_found"
+    UNAVAILABLE = "unavailable"
+
+
+OperationValue = TypeVar("OperationValue")
+
+
+@dataclass(frozen=True)
+class OpenverseOperationResult(Generic[OperationValue]):
+    """Per-call provider outcome safe for concurrent teacher operations."""
+
+    status: OpenverseOperationStatus
+    value: OperationValue | None = None
+
+
+class TeacherOpenverseImageClientProtocol(Protocol):
+    async def search_strict(
+        self, query: str, offset: int = 0, limit: int = 3
+    ) -> OpenverseOperationResult[list[CardImageCandidate]]: ...
+
+    async def get_strict(self, image_id: str) -> OpenverseOperationResult[CardImageCandidate]: ...
 
 
 def build_image_query(card: VocabularyCard) -> str:
@@ -51,6 +78,12 @@ class OpenverseImageClient:
             await self._async_client.aclose()
 
     async def search(self, query: str, offset: int = 0, limit: int = 3) -> list[CardImageCandidate]:
+        result = await self.search_strict(query, offset=offset, limit=limit)
+        return result.value if result.status is OpenverseOperationStatus.OK and result.value is not None else []
+
+    async def search_strict(
+        self, query: str, offset: int = 0, limit: int = 3
+    ) -> OpenverseOperationResult[list[CardImageCandidate]]:
         page_size = self._clamp_limit(limit)
         params = {
             "q": query,
@@ -59,32 +92,46 @@ class OpenverseImageClient:
             "license_type": "commercial",
             "license": "cc0,pdm,by,by-sa",
         }
-        payload = await self._request_json(f"{self._base_url}/images/", params=params)
+        response = await self._request_json_strict(f"{self._base_url}/images/", params=params)
+        if response.status is not OpenverseOperationStatus.OK:
+            return OpenverseOperationResult(status=response.status)
+        payload = response.value
         if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
             if payload is not None:
                 logger.warning("Openverse search returned an invalid payload")
-            return []
+            return OpenverseOperationResult(status=OpenverseOperationStatus.UNAVAILABLE)
 
         candidates: list[CardImageCandidate] = []
         for result in payload["results"][:page_size]:
             candidate = self._parse_candidate(result)
             if candidate is not None:
                 candidates.append(candidate)
-        return candidates
+        return OpenverseOperationResult(status=OpenverseOperationStatus.OK, value=candidates)
 
     async def get(self, image_id: str) -> CardImageCandidate | None:
+        result = await self.get_strict(image_id)
+        return result.value if result.status is OpenverseOperationStatus.OK else None
+
+    async def get_strict(self, image_id: str) -> OpenverseOperationResult[CardImageCandidate]:
         normalized_id = image_id.strip() if isinstance(image_id, str) else ""
         if not normalized_id or len(normalized_id) > 100:
-            return None
+            return OpenverseOperationResult(status=OpenverseOperationStatus.NOT_FOUND)
         encoded_id = quote(normalized_id, safe="")
-        payload = await self._request_json(f"{self._base_url}/images/{encoded_id}/")
-        return self._parse_candidate(payload)
+        response = await self._request_json_strict(f"{self._base_url}/images/{encoded_id}/")
+        if response.status is not OpenverseOperationStatus.OK:
+            return OpenverseOperationResult(status=response.status)
+        candidate = self._parse_candidate(response.value)
+        if candidate is None:
+            return OpenverseOperationResult(status=OpenverseOperationStatus.NOT_FOUND)
+        return OpenverseOperationResult(status=OpenverseOperationStatus.OK, value=candidate)
 
     def _clamp_limit(self, limit: int) -> int:
         configured_maximum = min(max(1, self.settings.openverse_result_page_size), _MAX_OPENVERSE_PAGE_SIZE)
         return min(max(1, limit), configured_maximum)
 
-    async def _request_json(self, url: str, params: dict[str, Any] | None = None) -> Any | None:
+    async def _request_json_strict(
+        self, url: str, params: dict[str, Any] | None = None
+    ) -> OpenverseOperationResult[Any]:
         request_kwargs = {
             "headers": {"User-Agent": self.settings.openverse_user_agent},
             "timeout": self.settings.openverse_timeout_seconds,
@@ -94,16 +141,21 @@ class OpenverseImageClient:
             response = await self._async_client.get(url, **request_kwargs)
         except httpx.HTTPError as exc:
             logger.warning("Openverse request failed: %s", type(exc).__name__)
-            return None
+            return OpenverseOperationResult(status=OpenverseOperationStatus.UNAVAILABLE)
 
         if not response.is_success:
             logger.warning("Openverse request returned HTTP %s", response.status_code)
-            return None
+            operation_status = (
+                OpenverseOperationStatus.NOT_FOUND
+                if response.status_code == status.HTTP_404_NOT_FOUND
+                else OpenverseOperationStatus.UNAVAILABLE
+            )
+            return OpenverseOperationResult(status=operation_status)
         try:
-            return response.json()
+            return OpenverseOperationResult(status=OpenverseOperationStatus.OK, value=response.json())
         except ValueError:
             logger.warning("Openverse response was not valid JSON")
-            return None
+            return OpenverseOperationResult(status=OpenverseOperationStatus.UNAVAILABLE)
 
     @staticmethod
     def _parse_candidate(payload: Any) -> CardImageCandidate | None:

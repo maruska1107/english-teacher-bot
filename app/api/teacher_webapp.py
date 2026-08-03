@@ -92,6 +92,30 @@ button:disabled { opacity: 0.48; cursor: not-allowed; }
 .empty { padding: 20px; border-radius: 14px; background: var(--known-bg); color: var(--known-text); }
 .error { padding: 14px; border-radius: 14px; background: var(--danger-bg); color: var(--danger-text); }
 .readonly-line { margin: 6px 0; color: var(--muted); }
+.card-image-area {
+  min-height: 180px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f3f1f6;
+}
+.card-thumbnail { width: 100%; height: 146px; display: block; object-fit: cover; background: #ebe8f0; }
+.image-placeholder { min-height: 146px; display: grid; place-items: center; color: var(--muted); }
+.image-attribution { min-height: 34px; padding: 8px 10px; font-size: 12px; color: var(--muted); }
+.image-attribution a { color: var(--primary-soft-text); }
+.image-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.image-option { min-width: 0; padding: 6px; background: #fdfcff; border-color: #d8d2e5; text-align: left; }
+.image-option img { width: 100%; height: 82px; object-fit: cover; border-radius: 7px; background: #ebe8f0; }
+.image-option-meta {
+  margin-top: 5px; overflow: hidden; font-size: 11px; color: var(--muted); text-overflow: ellipsis; white-space: nowrap;
+}
+.image-state {
+  margin-top: 9px; padding: 10px; border-radius: 10px; background: var(--primary-soft); color: var(--primary-soft-text);
+}
 """
 
 SCRIPT = """
@@ -111,6 +135,8 @@ let currentTab = "draft";
 let draftCards = [];
 let publishedCards = [];
 let addFormOpen = false;
+const imageOptionsState = new Map();
+let imageOptionsRequestGeneration = 0;
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -129,6 +155,15 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function safeHttpsUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    return parsed.protocol === "https:" ? parsed.href : "";
+  } catch (_) {
+    return "";
+  }
 }
 
 async function api(path, options = {}) {
@@ -191,6 +226,7 @@ async function loadProfiles() {
 }
 
 async function openProfile(profileId) {
+  cancelAllImageOptionsRequests();
   selectedProfile = profiles.find((profile) => profile.id === Number(profileId));
   if (!selectedProfile) return;
   currentTab = "draft";
@@ -209,13 +245,72 @@ async function loadProfileCards() {
   ]);
   draftCards = draftData.cards || [];
   publishedCards = publishedData.cards || [];
+  cancelAllImageOptionsRequests();
   renderSelectedProfile();
   setStatus(`Новых карточек: ${draftCards.length}`);
 }
 
+function imageAttributionTemplate(card) {
+  const sourceUrl = safeHttpsUrl(card.image_source_url);
+  const licenseUrl = safeHttpsUrl(card.image_license_url);
+  const creator = card.image_creator ? `${escapeHtml(card.image_creator)} · ` : "";
+  const source = sourceUrl
+    ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">источник</a>`
+    : "источник";
+  const licenseText = escapeHtml(card.image_license || "лицензия");
+  const license = licenseUrl
+    ? `<a href="${escapeHtml(licenseUrl)}" target="_blank" rel="noopener noreferrer">${licenseText}</a>`
+    : licenseText;
+  return `<div class="image-attribution">Фото: ${creator}${source} · ${license}</div>`;
+}
+
+function cardImageTemplate(card) {
+  const imageUrl = safeHttpsUrl(card.image_url);
+  if (!imageUrl) {
+    return '<div class="card-image-area"><div class="image-placeholder">Картинка не выбрана</div></div>';
+  }
+  return `<div class="card-image-area">
+    <img class="card-thumbnail" data-safe-image src="${escapeHtml(imageUrl)}" alt="">
+    ${imageAttributionTemplate(card)}
+  </div>`;
+}
+
+function hideBrokenImageRegion(image) {
+  image.removeAttribute("src");
+  const area = image.closest(".card-image-area");
+  if (area) area.hidden = true;
+}
+
+function imageOptionsTemplate(card) {
+  const state = imageOptionsState.get(card.id);
+  if (!state?.open) return "";
+  if (state.loading && !state.options.length) return '<div class="image-state">Загружаю варианты...</div>';
+  if (state.error) return `<div class="error">${escapeHtml(state.error)}</div>`;
+  if (state.empty) return '<div class="image-state">Подходящих картинок не найдено.</div>';
+  const options = state.options.map((option) => {
+    const imageUrl = safeHttpsUrl(option.image_url);
+    if (!imageUrl) return "";
+    const creator = option.creator ? escapeHtml(option.creator) : "Без автора";
+    return `<button type="button" class="image-option" data-action="select-image"
+      ${state.loading ? "disabled" : ""} data-image-id="${escapeHtml(option.image_id)}">
+      <img data-safe-image src="${escapeHtml(imageUrl)}" alt="">
+      <div class="image-option-meta">${creator} · ${escapeHtml(option.license)}</div>
+    </button>`;
+  }).join("");
+  const moreButton = state.hasMore
+    ? `<button type="button" class="secondary" data-action="more-images" ${state.loading ? "disabled" : ""}>
+        Показать ещё
+      </button>`
+    : "";
+  return `<div class="image-options">${options}</div><div class="actions">${moreButton}</div>`;
+}
+
 function editableCardTemplate(card) {
+  const imageState = imageOptionsState.get(card.id);
+  const imageBusy = Boolean(imageState?.loading);
   return `
     <article class="card" data-card-id="${card.id}">
+      ${cardImageTemplate(card)}
       <label>Слово / фраза</label>
       <input name="term" value="${escapeHtml(card.term)}">
       <label>Перевод</label>
@@ -229,14 +324,23 @@ function editableCardTemplate(card) {
       <label>Уровень</label>
       <input name="level" value="${escapeHtml(card.level)}">
       <div class="actions">
+        <button type="button" class="secondary" data-action="toggle-images" ${imageBusy ? "disabled" : ""}>
+          ${imageState?.open ? "Скрыть варианты" : "Заменить картинку"}
+        </button>
+        <button type="button" class="ghost" data-action="remove-image"
+          ${card.image_url && !imageBusy ? "" : "disabled"}>
+          Убрать картинку
+        </button>
         <button type="button" class="danger" data-action="delete-card">Удалить</button>
       </div>
+      ${imageOptionsTemplate(card)}
     </article>`;
 }
 
 function publishedCardTemplate(card) {
   return `
     <article class="card">
+      ${cardImageTemplate(card)}
       <h3>${escapeHtml(card.term)} — ${escapeHtml(card.translation_ru)}</h3>
       ${card.definition_en ? `<p class="readonly-line">${escapeHtml(card.definition_en)}</p>` : ""}
       ${card.example_sentence ? `<p class="readonly-line">${escapeHtml(card.example_sentence)}</p>` : ""}
@@ -396,6 +500,178 @@ async function createManualCard() {
   setStatus("Слово добавлено в новые карточки");
 }
 
+function syncDraftEditsFromDom() {
+  for (const cardEl of detailEl.querySelectorAll("[data-card-id]")) {
+    const cardId = Number(cardEl.dataset.cardId);
+    const index = draftCards.findIndex((card) => card.id === cardId);
+    if (index >= 0) draftCards[index] = { ...draftCards[index], ...payloadFromCard(cardEl) };
+  }
+}
+
+function replaceDraftCard(updatedCard) {
+  syncDraftEditsFromDom();
+  const current = draftCards.find((card) => card.id === updatedCard.id);
+  const editableFields = ["term", "translation_ru", "definition_en", "example_sentence", "source_phrase", "level"];
+  const edits = current ? Object.fromEntries(editableFields.map((field) => [field, current[field]])) : {};
+  draftCards = draftCards.map((card) => card.id === updatedCard.id ? { ...updatedCard, ...edits } : card);
+  renderSelectedProfile();
+}
+
+function imageOptionsRequestOffset(state, nextPage) {
+  if (!nextPage) return 0;
+  const offset = Number(state?.nextOffset);
+  return Number.isFinite(offset) && offset <= 300 ? offset : null;
+}
+
+function imageOptionsPage(previous, data, offset) {
+  const options = Array.isArray(data.options) ? data.options.slice(0, 3) : [];
+  const nextOffset = Number(data.next_offset || offset + 3);
+  return {
+    ...previous,
+    options,
+    nextOffset,
+    hasMore: options.length === 3 && nextOffset <= 300,
+    empty: options.length === 0,
+  };
+}
+
+function imageOptionsLoadingState(previous) {
+  return {
+    ...previous,
+    open: true,
+    loading: true,
+    error: "",
+    empty: false,
+  };
+}
+
+function beginImageOptionsRequest(cardId) {
+  const previous = imageOptionsState.get(cardId) || {};
+  if (previous.controller) previous.controller.abort();
+  const request = { token: ++imageOptionsRequestGeneration, controller: new AbortController() };
+  imageOptionsState.set(cardId, { ...previous, requestToken: request.token, controller: request.controller });
+  return request;
+}
+
+function isCurrentImageOptionsRequest(cardId, token) {
+  return imageOptionsState.get(cardId)?.requestToken === token;
+}
+
+function cancelImageOptionsRequest(cardId) {
+  const state = imageOptionsState.get(cardId);
+  if (state?.controller) state.controller.abort();
+  imageOptionsRequestGeneration += 1;
+  imageOptionsState.delete(cardId);
+}
+
+function cancelAllImageOptionsRequests() {
+  for (const cardId of imageOptionsState.keys()) cancelImageOptionsRequest(cardId);
+  imageOptionsState.clear();
+}
+
+async function loadImageOptions(cardId, nextPage = false) {
+  const previous = imageOptionsState.get(cardId) || { open: true, options: [], nextOffset: 0 };
+  const offset = imageOptionsRequestOffset(previous, nextPage);
+  if (offset === null) return;
+  syncDraftEditsFromDom();
+  const request = beginImageOptionsRequest(cardId);
+  const state = imageOptionsLoadingState({
+    ...previous,
+    requestToken: request.token,
+    controller: request.controller,
+  });
+  imageOptionsState.set(cardId, state);
+  renderSelectedProfile();
+  try {
+    const data = await api(`/api/teacher/cards/${cardId}/image-options?offset=${offset}`, {
+      signal: request.controller.signal,
+    });
+    if (!isCurrentImageOptionsRequest(cardId, request.token)) return;
+    Object.assign(state, imageOptionsPage(state, data, offset));
+  } catch (_) {
+    if (!isCurrentImageOptionsRequest(cardId, request.token)) return;
+    state.error = "Не удалось загрузить картинки. Попробуйте ещё раз.";
+  } finally {
+    if (!isCurrentImageOptionsRequest(cardId, request.token)) return;
+    syncDraftEditsFromDom();
+    state.loading = false;
+    delete state.controller;
+    imageOptionsState.set(cardId, state);
+    renderSelectedProfile();
+  }
+}
+
+async function toggleImageOptions(cardId) {
+  syncDraftEditsFromDom();
+  const state = imageOptionsState.get(cardId);
+  if (state?.open) {
+    if (state.controller) state.controller.abort();
+    imageOptionsRequestGeneration += 1;
+    state.open = false;
+    state.loading = false;
+    delete state.controller;
+    delete state.requestToken;
+    renderSelectedProfile();
+    return;
+  }
+  if (state?.error) {
+    await loadImageOptions(cardId);
+    return;
+  }
+  if (state?.options.length) {
+    state.open = true;
+    imageOptionsState.set(cardId, state);
+    renderSelectedProfile();
+    return;
+  }
+  await loadImageOptions(cardId);
+}
+
+async function selectCardImage(cardId, imageId) {
+  const state = imageOptionsState.get(cardId);
+  const option = state?.options.find((candidate) => candidate.image_id === imageId);
+  if (!option) return;
+  cancelImageOptionsRequest(cardId);
+  const busyState = imageOptionsLoadingState({ ...state, controller: null, requestToken: null });
+  imageOptionsState.set(cardId, busyState);
+  renderSelectedProfile();
+  try {
+    const updatedCard = await api(`/api/teacher/cards/${cardId}/image`, {
+      method: "PUT",
+      body: JSON.stringify({ image_id: option.image_id }),
+    });
+    imageOptionsState.delete(cardId);
+    replaceDraftCard(updatedCard);
+    setStatus("Картинка выбрана");
+  } catch (error) {
+    busyState.loading = false;
+    busyState.error = "Не удалось выбрать картинку. Попробуйте ещё раз.";
+    imageOptionsState.set(cardId, busyState);
+    renderSelectedProfile();
+    setStatus(`Ошибка: ${error.message}`);
+  }
+}
+
+async function removeCardImage(cardId) {
+  const previous = imageOptionsState.get(cardId) || { open: false, options: [] };
+  cancelImageOptionsRequest(cardId);
+  const busyState = imageOptionsLoadingState({ ...previous, open: previous.open || false });
+  imageOptionsState.set(cardId, busyState);
+  renderSelectedProfile();
+  try {
+    const updatedCard = await api(`/api/teacher/cards/${cardId}/image`, { method: "DELETE" });
+    imageOptionsState.delete(cardId);
+    replaceDraftCard(updatedCard);
+    setStatus("Картинка убрана");
+  } catch (error) {
+    busyState.loading = false;
+    busyState.open = previous.open || false;
+    imageOptionsState.set(cardId, busyState);
+    renderSelectedProfile();
+    setStatus(`Ошибка: ${error.message}`);
+  }
+}
+
 profilesEl.addEventListener("click", async (event) => {
   event.preventDefault();
   const profileButton = event.target.closest("[data-profile-id]");
@@ -409,12 +685,22 @@ detailEl.addEventListener("input", (event) => {
   }
 });
 
+detailEl.addEventListener("error", (event) => {
+  if (!event.target.matches("img[data-safe-image]")) return;
+  if (event.target.classList.contains("card-thumbnail")) hideBrokenImageRegion(event.target);
+  else {
+    event.target.removeAttribute("src");
+    event.target.hidden = true;
+  }
+}, true);
+
 detailEl.addEventListener("click", async (event) => {
   event.preventDefault();
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   try {
     if (button.dataset.action === "back-to-profiles") {
+      cancelAllImageOptionsRequests();
       selectedProfile = null;
       renderProfiles();
     }
@@ -441,6 +727,21 @@ detailEl.addEventListener("click", async (event) => {
     }
     if (button.dataset.action === "delete-card") {
       await deleteCard(button.closest("[data-card-id]").dataset.cardId);
+    }
+    if (button.dataset.action === "toggle-images") {
+      await toggleImageOptions(Number(button.closest("[data-card-id]").dataset.cardId));
+    }
+    if (button.dataset.action === "more-images") {
+      await loadImageOptions(Number(button.closest("[data-card-id]").dataset.cardId), true);
+    }
+    if (button.dataset.action === "select-image") {
+      await selectCardImage(
+        Number(button.closest("[data-card-id]").dataset.cardId),
+        button.dataset.imageId,
+      );
+    }
+    if (button.dataset.action === "remove-image") {
+      await removeCardImage(Number(button.closest("[data-card-id]").dataset.cardId));
     }
     if (button.dataset.action === "publish-all") {
       await publishAllDraftCards(button);
