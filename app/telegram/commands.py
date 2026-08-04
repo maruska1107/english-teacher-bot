@@ -233,7 +233,7 @@ class TelegramCommandService:
         await self.gateway.send_message(chat_id, ZOOM_DISCONNECTED_TEXT)
 
     async def handle_dev_seed_data(self, telegram_user_id: int, chat_id: int) -> None:
-        if telegram_user_id != self.settings.telegram_admin_id:
+        if telegram_user_id != self.settings.telegram_admin_id and not self.settings.zoom_review_access_enabled:
             await self.gateway.send_message(chat_id, ADMIN_ONLY_TEXT)
             return
         teacher = self.users.get_or_create_teacher(telegram_user_id)

@@ -340,6 +340,34 @@ async def test_dev_seed_data_is_admin_only():
     assert gateway.sent_messages == [(555, "Эта команда доступна только администратору.")]
 
 
+async def test_dev_seed_data_is_available_to_zoom_reviewer_in_review_mode():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    image_client = FakeSeedImageClient()
+    service = TelegramCommandService(
+        session=session,
+        gateway=gateway,
+        settings=make_settings(
+            telegram_admin_id=956230172,
+            zoom_review_access_enabled=True,
+            openverse_images_enabled=True,
+        ),
+        image_client=image_client,
+    )
+
+    await service.handle_dev_seed_data(telegram_user_id=7777, chat_id=777)
+
+    teacher = session.query(User).filter_by(telegram_user_id=7777).one()
+    profile = session.query(LearningProfile).filter_by(teacher_user_id=teacher.id, name="Тест Мария").one()
+    cards = session.query(VocabularyCard).filter_by(teacher_user_id=teacher.id, learning_profile_id=profile.id).all()
+    assert len(cards) == 4
+    assert sorted(card.status for card in cards) == ["draft", "draft", "published", "published"]
+    assert all(card.image_url and card.image_source_url for card in cards)
+    assert sorted(image_client.queries) == ["fluency", "improve", "journey", "make progress"]
+    assert gateway.sent_messages[-1][0] == 777
+    assert "Тестовые данные готовы" in gateway.sent_messages[-1][1]
+
+
 async def test_status_reports_zoom_connection_and_lesson_count():
     session = make_session()
     gateway = FakeTelegramGateway()
