@@ -75,12 +75,14 @@ def get_current_teacher(
     except TelegramWebAppAuthError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
     telegram_user_id = init_data.user.id
-    if telegram_user_id not in settings.allowed_teacher_ids:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher is not allowed")
     teacher = UserRepository(session).get_by_telegram_id(telegram_user_id)
     if teacher is None:
+        if telegram_user_id not in settings.allowed_teacher_ids:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher is not allowed")
         teacher = UserRepository(session).get_or_create_teacher(telegram_user_id)
         session.commit()
+    if telegram_user_id not in settings.allowed_teacher_ids and not settings.zoom_review_access_enabled:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher is not allowed")
     return teacher
 
 

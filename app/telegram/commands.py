@@ -104,7 +104,7 @@ class TelegramCommandService:
         if linked_student is not None:
             await self._send_student_cards_button(chat_id, linked_student.name)
             return
-        if not self._is_allowed_teacher(telegram_user_id):
+        if not self._is_allowed_teacher(telegram_user_id) and not self.settings.zoom_review_access_enabled:
             await self._send_access_denied(chat_id, telegram_user_id)
             return
 
@@ -113,7 +113,7 @@ class TelegramCommandService:
         await self.gateway.send_message(chat_id, START_NOTICE_TEXT)
 
     async def handle_connect_zoom(self, telegram_user_id: int, chat_id: int) -> None:
-        if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
+        if not await self._ensure_allowed_teacher_or_zoom_reviewer(telegram_user_id, chat_id):
             return
         user = self.users.get_by_telegram_id(telegram_user_id)
         assert user is not None
@@ -126,6 +126,15 @@ class TelegramCommandService:
             await self.gateway.send_message(chat_id, ZOOM_CONNECT_NOT_READY_TEXT)
             return
         await self.gateway.send_message(chat_id, f"Подключите Zoom по ссылке:\n{authorization_url}")
+
+    async def handle_connect_alias(self, telegram_user_id: int, chat_id: int, command_args: str = "") -> None:
+        if command_args.strip().lower() != "zoom":
+            await self.gateway.send_message(
+                chat_id,
+                "Чтобы подключить Zoom, отправьте /connect_zoom или /connect Zoom.",
+            )
+            return
+        await self.handle_connect_zoom(telegram_user_id=telegram_user_id, chat_id=chat_id)
 
     async def handle_add_zoom_meeting(self, telegram_user_id: int, chat_id: int, meeting_link: str = "") -> None:
         if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
@@ -452,7 +461,7 @@ class TelegramCommandService:
         )
 
     async def _ensure_allowed_teacher(self, telegram_user_id: int, chat_id: int) -> bool:
-        if self._is_allowed_teacher(telegram_user_id):
+        if self._is_allowed_teacher(telegram_user_id) or self.settings.zoom_review_access_enabled:
             if self.users.get_by_telegram_id(telegram_user_id) is None:
                 self.users.get_or_create_teacher(telegram_user_id)
                 self.session.commit()
@@ -460,8 +469,18 @@ class TelegramCommandService:
         await self._send_access_denied(chat_id, telegram_user_id)
         return False
 
+    async def _ensure_allowed_teacher_or_zoom_reviewer(self, telegram_user_id: int, chat_id: int) -> bool:
+        return await self._ensure_allowed_teacher(telegram_user_id, chat_id)
+
     async def _ensure_allowed_user_or_admin(self, telegram_user_id: int, chat_id: int) -> bool:
-        if telegram_user_id == self.settings.telegram_admin_id or self._is_allowed_teacher(telegram_user_id):
+        if (
+            telegram_user_id == self.settings.telegram_admin_id
+            or self._is_allowed_teacher(telegram_user_id)
+            or (
+                self.settings.zoom_review_access_enabled
+                and self.users.get_by_telegram_id(telegram_user_id) is not None
+            )
+        ):
             return True
         await self._send_access_denied(chat_id, telegram_user_id)
         return False

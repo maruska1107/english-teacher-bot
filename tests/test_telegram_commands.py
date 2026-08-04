@@ -205,6 +205,85 @@ async def test_start_rejects_non_allowed_teacher_without_creating_user():
     ]
 
 
+async def test_zoom_review_mode_allows_reviewer_start_and_teacher_webapp_button():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(
+        session=session,
+        gateway=gateway,
+        settings=make_settings(zoom_review_access_enabled=True),
+    )
+
+    await service.handle_start(telegram_user_id=7777, chat_id=777)
+    await service.handle_cards(telegram_user_id=7777, chat_id=777)
+
+    reviewer = session.query(User).filter_by(telegram_user_id=7777).one()
+    assert reviewer.role == "teacher"
+    assert gateway.sent_messages == [(777, START_NOTICE_TEXT)]
+    assert gateway.webapp_buttons == [
+        (
+            777,
+            "Карточки для проверки:\n"
+            "https://englishtutorai.ru/teacher/cards\n\n"
+            "Откройте ссылку внутри Telegram, чтобы проверить draft-карточки.",
+            "Открыть WebApp",
+            "https://englishtutorai.ru/teacher/cards",
+        )
+    ]
+
+
+async def test_zoom_review_mode_allows_reviewer_to_get_oauth_url():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(
+        session=session,
+        gateway=gateway,
+        settings=make_settings(zoom_review_access_enabled=True),
+    )
+
+    await service.handle_connect_zoom(telegram_user_id=7777, chat_id=777)
+
+    reviewer = session.query(User).filter_by(telegram_user_id=7777).one()
+    assert reviewer.role == "teacher"
+    assert len(gateway.sent_messages) == 1
+    chat_id, message = gateway.sent_messages[0]
+    assert chat_id == 777
+    assert message.startswith("Подключите Zoom по ссылке:\nhttps://zoom.us/oauth/authorize?")
+    assert "client_id=zoom-client-id" in message
+    assert "state=" in message
+
+
+async def test_connect_zoom_alias_accepts_reviewer_connect_zoom_text_in_review_mode():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(
+        session=session,
+        gateway=gateway,
+        settings=make_settings(zoom_review_access_enabled=True),
+    )
+
+    await service.handle_connect_alias(telegram_user_id=7777, chat_id=777, command_args="Zoom")
+
+    assert len(gateway.sent_messages) == 1
+    assert gateway.sent_messages[0][0] == 777
+    assert gateway.sent_messages[0][1].startswith("Подключите Zoom по ссылке:\nhttps://zoom.us/oauth/authorize?")
+
+
+async def test_connect_alias_rejects_unknown_target_without_creating_reviewer():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(
+        session=session,
+        gateway=gateway,
+        settings=make_settings(zoom_review_access_enabled=True),
+    )
+
+    await service.handle_connect_alias(telegram_user_id=7777, chat_id=777, command_args="calendar")
+
+    assert session.query(User).count() == 0
+    assert gateway.sent_messages == [(777, "Чтобы подключить Zoom, отправьте /connect_zoom или /connect Zoom.")]
+
+
 async def test_dev_seed_data_admin_command_recreates_test_profile_lessons_and_cards():
     session = make_session()
     gateway = FakeTelegramGateway()

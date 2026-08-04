@@ -32,13 +32,15 @@ def make_session() -> Session:
     return session_factory()
 
 
-def make_settings() -> Settings:
-    return Settings(
-        app_env="test",
-        telegram_bot_token="test-bot-token",
-        allowed_telegram_teacher_ids="1001",
-        openverse_images_enabled=False,
-    )
+def make_settings(**overrides) -> Settings:
+    defaults = {
+        "app_env": "test",
+        "telegram_bot_token": "test-bot-token",
+        "allowed_telegram_teacher_ids": "1001",
+        "openverse_images_enabled": False,
+    }
+    defaults.update(overrides)
+    return Settings(**defaults)
 
 
 def signed_init_data(telegram_user_id: int, bot_token: str = "test-bot-token") -> str:
@@ -56,9 +58,9 @@ def signed_init_data(telegram_user_id: int, bot_token: str = "test-bot-token") -
     return "&".join(f"{key}={quote(value)}" for key, value in {**fields, "hash": signature}.items())
 
 
-def make_client(session: Session) -> TestClient:
+def make_client(session: Session, settings: Settings | None = None) -> TestClient:
     app = create_app()
-    app.dependency_overrides[get_settings] = make_settings
+    app.dependency_overrides[get_settings] = lambda: settings or make_settings()
 
     def override_db_session():
         yield session
@@ -221,6 +223,42 @@ def test_teacher_cards_api_rejects_invalid_init_data_and_other_teacher_card():
     assert bad_auth.status_code == 401
     assert not_allowed.status_code == 403
     assert other_card.status_code == 403
+
+
+def test_zoom_review_mode_allows_existing_reviewer_teacher_to_use_own_teacher_cards_api():
+    session = make_session()
+    reviewer = User(telegram_user_id=2002, role="teacher", is_active=True)
+    session.add(reviewer)
+    session.flush()
+    profile = LearningProfile(
+        teacher_user_id=reviewer.id,
+        name="Zoom Review",
+        profile_type="individual",
+        card_publish_mode="manual_review",
+    )
+    session.add(profile)
+    session.commit()
+    client = make_client(session, settings=make_settings(zoom_review_access_enabled=True))
+
+    response = client.get(
+        "/api/teacher/card-profiles",
+        headers={"x-telegram-init-data": signed_init_data(2002)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["profiles"][0]["name"] == "Zoom Review"
+
+
+def test_zoom_review_mode_still_rejects_unknown_webapp_user_without_start_or_oauth():
+    session = make_session()
+    client = make_client(session, settings=make_settings(zoom_review_access_enabled=True))
+
+    response = client.get(
+        "/api/teacher/card-profiles",
+        headers={"x-telegram-init-data": signed_init_data(2002)},
+    )
+
+    assert response.status_code == 403
 
 
 def test_teacher_profile_repository_counts_new_and_published_cards():

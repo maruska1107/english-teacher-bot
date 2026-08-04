@@ -67,6 +67,9 @@ def build_telegram_application(settings: Settings | None = None) -> Application 
     token = token_secret.get_secret_value()
     application = Application.builder().token(token).post_init(register_bot_commands).build()
     application.add_handler(CommandHandler("start", _start_handler(settings)))
+    application.add_handler(
+        CommandHandler("connect", _text_command_handler("handle_connect_alias", settings, "command_args"))
+    )
     application.add_handler(CommandHandler("connect_zoom", _command_handler("handle_connect_zoom", settings)))
     application.add_handler(CommandHandler("cards", _command_handler("handle_cards", settings)))
     application.add_handler(

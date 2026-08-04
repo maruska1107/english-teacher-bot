@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     zoom_webhook_secret_token: SecretStr | None = None
     zoom_oauth_state_ttl_minutes: int = 15
     auto_process_zoom_webhook_lessons: bool = True
+    zoom_review_access_enabled: bool = False
 
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4.1-mini"
