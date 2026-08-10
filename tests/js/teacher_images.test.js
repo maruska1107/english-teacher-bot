@@ -243,3 +243,15 @@ test('teacher student detail keeps top nav stable and uses inner student tabs', 
   assert.ok(renderSelectedProfile.includes('Домашка'));
   assert.ok(renderSelectedProfile.includes('Уроки'));
 });
+
+test('teacher student detail unifies student tabs and active content in one panel', () => {
+  const renderSelectedProfile = extractFunction('renderSelectedProfile');
+  assert.ok(renderSelectedProfile.includes('student-workspace'));
+  assert.ok(renderSelectedProfile.includes('${content}'));
+  assert.equal(renderSelectedProfile.includes('<section class="panel">\n      <h2>${escapeHtml(selectedProfile.name)}</h2>'), false);
+  assert.equal(renderSelectedProfile.includes('${content}`;'), false);
+  const profileTemplate = extractFunction('profileTemplate');
+  assert.ok(profileTemplate.includes('profileTypeLabel(profile)'));
+  assert.equal(profileTemplate.includes('new_card_count'), false);
+  assert.equal(profileTemplate.includes('published_card_count'), false);
+});

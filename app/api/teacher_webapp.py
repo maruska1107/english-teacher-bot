@@ -92,6 +92,9 @@ button:disabled { opacity: 0.48; cursor: not-allowed; }
 .empty { padding: 20px; border-radius: 14px; background: var(--known-bg); color: var(--known-text); }
 .error { padding: 14px; border-radius: 14px; background: var(--danger-bg); color: var(--danger-text); }
 .readonly-line { margin: 6px 0; color: var(--muted); }
+.student-workspace > .tabs { margin-bottom: 14px; }
+.student-tab-content { margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.student-tab-content > h2 { margin-top: 0; }
 .card-image-area {
   min-height: 180px;
   margin-bottom: 12px;
@@ -213,15 +216,11 @@ function profileTypeLabel(profile) {
 }
 
 function profileTemplate(profile) {
-  const newCount = Number(profile.new_card_count || 0);
-  const publishedCount = Number(profile.published_card_count || 0);
   return `
-    <button type="button" class="profile-card" data-profile-id="${profile.id}" aria-label="Открыть карточки">
+    <button type="button" class="profile-card" data-profile-id="${profile.id}" aria-label="Открыть ученика">
       <h2>${escapeHtml(profile.name)}</h2>
       <div class="profile-meta">
         <span class="badge badge-muted">${profileTypeLabel(profile)}</span>
-        <span class="badge badge-new">+${newCount} новых слов</span>
-        <span class="badge badge-muted">${publishedCount} опубликовано</span>
       </div>
     </button>`;
 }
@@ -533,15 +532,15 @@ function renderHomeworkTab() {
   const homeworkHtml = selectedHomeworkItems.length
     ? selectedHomeworkItems.map(homeworkBlockTemplate).join("")
     : '<div class="empty">У этого ученика пока нет отправленной домашки.</div>';
-  return `<section class="panel"><h2>Домашка</h2>${homeworkHtml}</section>`;
+  return `<div class="student-tab-content"><h2>Домашка</h2>${homeworkHtml}</div>`;
 }
 
 function renderLessonsTab() {
   return `
-    <section class="panel">
+    <div class="student-tab-content">
       <h2>Уроки</h2>
       <p class="lead">Скоро здесь будет история уроков ученика. Сейчас последние итоги смотрите во вкладке Домашка.</p>
-    </section>`;
+    </div>`;
 }
 
 function renderCardsTab() {
@@ -562,7 +561,7 @@ function renderCardsTab() {
   const publishedTabClass = !isNewTab ? "tab-active" : "secondary";
 
   return `
-    <section class="panel">
+    <div class="student-tab-content">
       <h2>Карточки</h2>
       <p class="lead">Новые карточки: ${draftCards.length}</p>
       <div class="profile-meta">
@@ -576,7 +575,7 @@ function renderCardsTab() {
       <div id="profile-cards">${cardHtml}</div>
       ${addWordHtml}
       <div class="actions">${publishButton}</div>
-    </section>`;
+    </div>`;
 }
 
 function renderSelectedProfile() {
@@ -587,15 +586,15 @@ function renderSelectedProfile() {
       : renderCardsTab();
   detailEl.innerHTML = `
     <button type="button" class="ghost" data-action="back-to-profiles">← Назад к ученикам и группам</button>
-    <section class="panel">
+    <section class="panel student-workspace">
       <h2>${escapeHtml(selectedProfile.name)}</h2>
       <div class="tabs" aria-label="Разделы ученика">
         <button type="button" class="${studentTabClass("cards")}" data-student-tab="cards">Карточки</button>
         <button type="button" class="${studentTabClass("homework")}" data-student-tab="homework">Домашка</button>
         <button type="button" class="${studentTabClass("lessons")}" data-student-tab="lessons">Уроки</button>
       </div>
-    </section>
-    ${content}`;
+      ${content}
+    </section>`;
 }
 
 async function saveAllDraftCardEdits() {
