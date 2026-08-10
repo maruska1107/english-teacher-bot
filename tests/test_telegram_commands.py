@@ -10,6 +10,7 @@ from app.models import (
     Lesson,
     LessonAnalysis,
     Student,
+    StudentHomework,
     User,
     VocabularyCard,
     ZoomMeetingSubscription,
@@ -309,6 +310,15 @@ async def test_dev_seed_data_admin_command_recreates_test_profile_lessons_and_ca
     assert len(profile.memberships) == 1
     assert len(lessons) == 2
     assert session.query(LessonAnalysis).join(Lesson).filter(Lesson.learning_profile_id == profile.id).count() == 2
+    homework = session.query(StudentHomework).filter_by(student_id=student.id, slot="current").one()
+    assert homework.lesson_date_label == "После урока 10 августа"
+    assert homework.summary_text == "Сегодня говорили о путешествиях и практиковали Past Simple."
+    assert homework.homework_items == [
+        "Exercise 4, page 32",
+        "5–7 предложений про последнюю поездку",
+        "повторить 8 новых слов",
+    ]
+    assert homework.new_cards_count == 4
     assert sorted(card.status for card in cards) == ["draft", "draft", "published", "published"]
     assert all(card.image_url and card.image_source_url for card in cards)
     assert all(card.image_creator == "Seed photographer" for card in cards)

@@ -8,6 +8,7 @@ from app.core.config import Settings
 from app.models import LearningProfile, LearningProfileMember, Lesson, LessonAnalysis, Student, VocabularyCard
 from app.repositories.learning_profiles import LearningProfileRepository
 from app.repositories.lessons import LessonRepository
+from app.repositories.student_homework import StudentHomeworkRepository
 from app.repositories.students import StudentRepository
 from app.repositories.users import UserRepository
 from app.repositories.zoom_meeting_subscriptions import ZoomMeetingSubscriptionRepository
@@ -319,6 +320,28 @@ class TelegramCommandService:
             saved_cards.append(card)
 
         image_queries = [(card, build_image_query(card)) for card in saved_cards]
+        StudentHomeworkRepository(self.session).publish_current(
+            student_id=student.id,
+            learning_profile_id=profile.id,
+            lesson_id=lessons[1].id,
+            lesson_date_label="После урока 10 августа",
+            summary_text="Сегодня говорили о путешествиях и практиковали Past Simple.",
+            wins_text="Ты стала давать более длинные ответы и хорошо использовала новую лексику про путешествия.",
+            focus_text=(
+                "was / were\n"
+                "❌ We was in Italy.\n"
+                "✅ We were in Italy.\n\n"
+                "Вопросы в Past Simple\n"
+                "❌ Where you went?\n"
+                "✅ Where did you go?"
+            ),
+            homework_items=[
+                "Exercise 4, page 32",
+                "5–7 предложений про последнюю поездку",
+                "повторить 8 новых слов",
+            ],
+            new_cards_count=len(saved_cards),
+        )
         self.session.commit()
         await self._enrich_seed_cards(image_queries)
         await self.gateway.send_message(

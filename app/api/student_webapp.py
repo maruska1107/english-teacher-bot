@@ -195,6 +195,23 @@ button {
 }
 .learning { background: var(--learning-bg); color: var(--learning-text); border-color: var(--learning-border); }
 .known { background: var(--known-bg); color: var(--known-text); border-color: var(--known-border); }
+.homework-card {
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.homework-card h2 { margin: 0 0 8px; font-size: 18px; }
+.homework-date { margin: 0 0 12px; color: var(--muted); font-weight: 800; }
+.homework-block { margin: 12px 0; }
+.homework-block h3 { margin: 0 0 6px; font-size: 15px; }
+.homework-block p { margin: 0; color: var(--muted); line-height: 1.45; white-space: pre-wrap; }
+.homework-list { margin: 8px 0 0; padding: 0; list-style: none; }
+.homework-list li { margin: 6px 0; color: var(--text); }
+.homework-list li::before { content: "✓"; margin-right: 8px; color: var(--badge-text); font-weight: 900; }
+.homework-actions { justify-content: flex-start; }
+.homework-previous { background: #fbfafc; }
 .empty { padding: 20px; border-radius: 14px; background: var(--badge-bg); color: var(--badge-text); }
 .error { padding: 14px; border-radius: 14px; background: var(--error-bg); color: var(--error-text); }
 .hidden { display: none; }
@@ -210,9 +227,12 @@ const initData = tg?.initData || "";
 const statusEl = document.getElementById("status");
 const studyEl = document.getElementById("study");
 const statsEl = document.getElementById("stats");
+const homeworkEl = document.getElementById("homework");
 const navButtons = Array.from(document.querySelectorAll("button[data-section]"));
 
 let allCards = [];
+let homeworkItems = [];
+let homeworkLoaded = false;
 let studyCards = [];
 let currentIndex = 0;
 let isFlipped = false;
@@ -262,6 +282,7 @@ function countByStatus(status) {
 function hideSections() {
   studyEl.classList.add("hidden");
   statsEl.classList.add("hidden");
+  homeworkEl.classList.add("hidden");
 }
 
 function setActiveSection(section) {
@@ -405,9 +426,81 @@ function renderCardList() {
   setStatus("");
 }
 
+function homeworkCardTemplate(item) {
+  const title = item.slot === "current" ? "Текущее ДЗ" : "Предыдущее ДЗ";
+  const cardClass = item.slot === "current" ? "homework-card" : "homework-card homework-previous";
+  const homeworkList = item.homework_items.length
+    ? item.homework_items.map((entry) => `<li>${escapeHtml(entry)}</li>`).join("")
+    : "<li>Домашка будет добавлена после проверки урока.</li>";
+  const cardsButton = item.new_cards_count
+    ? `<div class="actions homework-actions">
+         <button type="button" class="known" data-section="cards">Учить ${item.new_cards_count} слов</button>
+       </div>`
+    : "";
+  const summaryBlock = item.summary_text
+    ? `<div class="homework-block"><h3>✨ Итоги урока</h3><p>${escapeHtml(item.summary_text)}</p></div>`
+    : "";
+  const winsBlock = item.wins_text
+    ? `<div class="homework-block"><h3>💪 Что получилось</h3><p>${escapeHtml(item.wins_text)}</p></div>`
+    : "";
+  const focusBlock = item.focus_text
+    ? `<div class="homework-block"><h3>🎯 Фокус</h3><p>${escapeHtml(item.focus_text)}</p></div>`
+    : "";
+  return `
+    <article class="${cardClass}">
+      <h2>${title}</h2>
+      <p class="homework-date">${escapeHtml(item.lesson_date_label)}</p>
+      ${summaryBlock}
+      ${winsBlock}
+      ${focusBlock}
+      <div class="homework-block"><h3>📝 Домашка</h3><ul class="homework-list">${homeworkList}</ul></div>
+      ${cardsButton}
+    </article>`;
+}
+
+function renderHomework() {
+  hideSections();
+  setActiveSection("homework");
+  homeworkEl.classList.remove("hidden");
+  if (!homeworkLoaded) {
+    homeworkEl.innerHTML = '<div class="status">Загружаю домашку...</div>';
+    setStatus("Загружаю домашку...");
+    loadHomework();
+    return;
+  }
+  if (!homeworkItems.length) {
+    homeworkEl.innerHTML = '<div class="empty">Пока домашки нет. После урока преподаватель отправит её сюда.</div>';
+    setStatus("Домашка");
+    return;
+  }
+  homeworkEl.innerHTML = homeworkItems.map((item) => homeworkCardTemplate(item)).join("");
+  setStatus("Домашка");
+}
+
+async function loadHomework() {
+  if (!initData) {
+    homeworkEl.innerHTML = '<div class="error">Откройте эту страницу внутри Telegram WebApp.</div>';
+    setStatus("Нет Telegram initData");
+    return;
+  }
+  try {
+    const data = await api("/api/student/homework");
+    homeworkItems = data.items;
+    homeworkLoaded = true;
+    renderHomework();
+  } catch (error) {
+    homeworkEl.innerHTML = `<div class="error">Ошибка загрузки: ${escapeHtml(error.message)}</div>`;
+    setStatus("Ошибка");
+  }
+}
+
 function renderCurrentSection() {
   if (currentSection === "stats") {
     renderStats();
+    return;
+  }
+  if (currentSection === "homework") {
+    renderHomework();
     return;
   }
   if (currentCardMode === "list") {
@@ -505,6 +598,16 @@ studyEl.addEventListener("keydown", (event) => {
   handleFlashcardActivation(event, flipCard);
 });
 
+homeworkEl.addEventListener("click", (event) => {
+  const sectionButton = event.target.closest("button[data-section]");
+  if (!sectionButton) return;
+  currentSection = sectionButton.dataset.section;
+  if (currentSection === "cards") currentCardMode = "study";
+  currentIndex = 0;
+  isFlipped = false;
+  renderCurrentSection();
+});
+
 navButtons.forEach((button) => {
   button.addEventListener("click", () => {
     currentIndex = 0;
@@ -531,13 +634,15 @@ def _page() -> str:
 </head>
 <body>
   <main class="page">
-    <h1>Мои карточки</h1>
-    <div class="toolbar" aria-label="Разделы карточек">
+    <h1>Мои занятия</h1>
+    <div class="toolbar" aria-label="Разделы ученика">
       <button type="button" data-section="cards" class="mode-button">Карточки</button>
+      <button type="button" data-section="homework" class="secondary-button">Домашка</button>
       <button type="button" data-section="stats" class="secondary-button">Статистика</button>
     </div>
     <div id="status" class="status">Загрузка...</div>
     <section id="study" class="study-area"></section>
+    <section id="homework" class="card-list hidden"></section>
     <section id="stats" class="card-list hidden"></section>
   </main>
   <script>{CARD_UI_SCRIPT}</script>

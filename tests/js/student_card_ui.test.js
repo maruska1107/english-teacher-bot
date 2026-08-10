@@ -192,3 +192,12 @@ test('student study cards omit redundant memory instructions', () => {
   assert.equal(studentWebappSource.includes('Сначала вспоминаем перевод сами'), false);
   assert.equal(studentWebappSource.includes('Выберите, насколько хорошо помните слово'), false);
 });
+
+test('student webapp exposes homework section and loads homework API', () => {
+  assert.ok(studentWebappSource.includes('data-section="homework"'));
+  assert.ok(studentWebappSource.includes('Домашка'));
+  assert.ok(studentWebappSource.includes('/api/student/homework'));
+  assert.ok(studentWebappSource.includes('Пока домашки нет. После урока преподаватель отправит её сюда.'));
+  assert.ok(studentWebappSource.includes('Текущее ДЗ'));
+  assert.ok(studentWebappSource.includes('Предыдущее ДЗ'));
+});
