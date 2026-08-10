@@ -126,10 +126,14 @@ if (tg) {
 }
 const initData = tg?.initData || "";
 const statusEl = document.getElementById("status");
+const topTabsEl = document.getElementById("top-tabs");
 const profilesEl = document.getElementById("profiles");
 const detailEl = document.getElementById("profile-detail");
+const reviewsEl = document.getElementById("lesson-reviews");
 
 let profiles = [];
+let lessonReviews = [];
+let activeMainSection = "profiles";
 let selectedProfile = null;
 let currentTab = "draft";
 let draftCards = [];
@@ -155,6 +159,29 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function setActiveMainSection(section) {
+  activeMainSection = section;
+  selectedProfile = null;
+  cancelAllImageOptionsRequests();
+  for (const button of topTabsEl.querySelectorAll("button[data-main-section]")) {
+    button.classList.toggle("tab-active", button.dataset.mainSection === section);
+    button.classList.toggle("secondary", button.dataset.mainSection !== section);
+  }
+  profilesEl.classList.toggle("hidden", section !== "profiles");
+  detailEl.classList.add("hidden");
+  reviewsEl.classList.toggle("hidden", section !== "reviews");
+}
+
+function renderPlaceholderSection(title, text) {
+  setActiveMainSection("placeholder");
+  reviewsEl.classList.remove("hidden");
+  reviewsEl.innerHTML = `
+    <section class="panel">
+      <h2>${escapeHtml(title)}</h2>
+      <p class="lead">${escapeHtml(text)}</p>
+    </section>`;
 }
 
 function safeHttpsUrl(value) {
@@ -198,6 +225,7 @@ function profileTemplate(profile) {
 }
 
 function renderProfiles() {
+  reviewsEl.classList.add("hidden");
   detailEl.classList.add("hidden");
   profilesEl.classList.remove("hidden");
   if (!profiles.length) {
@@ -205,6 +233,68 @@ function renderProfiles() {
     return;
   }
   profilesEl.innerHTML = profiles.map(profileTemplate).join("");
+}
+
+function reviewTemplate(review) {
+  const homework = (review.homework_items || []).length
+    ? `<ul>${review.homework_items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+    : '<p class="readonly-line">Домашка не указана.</p>';
+  return `
+    <article class="panel" data-lesson-id="${review.lesson_id}">
+      <h2>✨ Урок с ${escapeHtml(review.student_name)} готов</h2>
+      <p class="readonly-line">${escapeHtml(review.lesson_date_label)}</p>
+      <p>${escapeHtml(review.summary_text)}</p>
+      <h3>📝 Домашка</h3>
+      ${homework}
+      <div class="profile-meta">
+        <span class="badge badge-new">${Number(review.new_cards_count || 0)} новых слов</span>
+      </div>
+      <div class="actions">
+        <button type="button" class="primary" data-action="confirm-review">Подтвердить и отправить</button>
+      </div>
+    </article>`;
+}
+
+function renderLessonReviews() {
+  profilesEl.classList.add("hidden");
+  detailEl.classList.add("hidden");
+  reviewsEl.classList.remove("hidden");
+  if (!lessonReviews.length) {
+    reviewsEl.innerHTML = '<div class="empty">Сейчас ничего не ждёт проверки.</div>';
+    return;
+  }
+  reviewsEl.innerHTML = lessonReviews.map(reviewTemplate).join("");
+}
+
+async function loadLessonReviews() {
+  if (!initData) {
+    reviewsEl.innerHTML = '<div class="error">Откройте эту страницу внутри Telegram WebApp.</div>';
+    setStatus("Нет Telegram initData");
+    return;
+  }
+  setActiveMainSection("reviews");
+  setStatus("Загружаю уроки на проверку...");
+  try {
+    const data = await api("/api/teacher/lesson-reviews");
+    lessonReviews = data.reviews || [];
+    renderLessonReviews();
+    setStatus(`На проверку: ${lessonReviews.length}`);
+  } catch (error) {
+    reviewsEl.innerHTML = `<div class="error">Ошибка загрузки: ${escapeHtml(error.message)}</div>`;
+    setStatus("Ошибка");
+  }
+}
+
+async function confirmLessonReview(lessonId, button) {
+  button.disabled = true;
+  try {
+    await api(`/api/teacher/lesson-reviews/${lessonId}/confirm`, { method: "POST" });
+    setStatus("Домашка отправлена ученику");
+    await loadLessonReviews();
+  } catch (error) {
+    button.disabled = false;
+    setStatus(`Ошибка: ${error.message}`);
+  }
 }
 
 async function loadProfiles() {
@@ -675,6 +765,29 @@ profilesEl.addEventListener("click", async (event) => {
   await openProfile(profileButton.dataset.profileId);
 });
 
+topTabsEl.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-main-section]");
+  if (!button) return;
+  event.preventDefault();
+  if (button.dataset.mainSection === "profiles") {
+    setActiveMainSection("profiles");
+    renderProfiles();
+    return;
+  }
+  if (button.dataset.mainSection === "reviews") {
+    await loadLessonReviews();
+    return;
+  }
+  renderPlaceholderSection(button.textContent.trim(), "Добавим этот раздел после проверки основного процесса.");
+});
+
+reviewsEl.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action='confirm-review']");
+  if (!button) return;
+  event.preventDefault();
+  await confirmLessonReview(button.closest("[data-lesson-id]").dataset.lessonId, button);
+});
+
 detailEl.addEventListener("input", (event) => {
   if (event.target.matches("[data-required-manual-card]")) {
     updateCreateCardButton();
@@ -763,11 +876,18 @@ def _page() -> str:
 </head>
 <body>
   <main class="page">
-    <h1>Карточки</h1>
-    <p class="lead">Сначала выберите ученика или группу, затем проверьте новые карточки.</p>
+    <h1>Кабинет преподавателя</h1>
+    <p class="lead">Проверьте новые слова и отправьте итоги урока ученику.</p>
+    <div id="top-tabs" class="tabs" aria-label="Разделы преподавателя">
+      <button type="button" class="tab-active" data-main-section="profiles">👥 Ученики</button>
+      <button type="button" class="secondary" data-main-section="reviews">✨ На проверку</button>
+      <button type="button" class="secondary" data-main-section="lessons">📚 Уроки</button>
+      <button type="button" class="secondary" data-main-section="settings">⚙️ Настройки</button>
+    </div>
     <div id="status" class="status">Загрузка...</div>
     <section id="profiles"></section>
     <section id="profile-detail" class="hidden"></section>
+    <section id="lesson-reviews" class="hidden"></section>
   </main>
   <script>{SCRIPT}</script>
 </body>

@@ -218,3 +218,13 @@ test('teacher card UI omits hidden fields while preserving their values in updat
     level: 'B1',
   });
 });
+
+test('teacher webapp exposes lesson review section and confirmation API', () => {
+  assert.ok(pythonSource.includes('✨ На проверку'));
+  assert.ok(pythonSource.includes('👥 Ученики'));
+  assert.ok(pythonSource.includes('📚 Уроки'));
+  assert.ok(pythonSource.includes('⚙️ Настройки'));
+  assert.ok(pythonSource.includes('/api/teacher/lesson-reviews'));
+  assert.ok(pythonSource.includes('/confirm'));
+  assert.ok(pythonSource.includes('Подтвердить и отправить'));
+});
