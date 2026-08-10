@@ -20,9 +20,13 @@ from app.zoom.oauth import ZoomOAuthService, ZoomTokenPayload, ZoomUserProfile
 class FakeTelegramNotifier:
     def __init__(self) -> None:
         self.messages: list[tuple[int, str]] = []
+        self.webapp_buttons: list[tuple[int, str, str, str]] = []
 
     async def send_message(self, chat_id: int, text: str) -> None:
         self.messages.append((chat_id, text))
+
+    async def send_webapp_button(self, chat_id: int, text: str, button_text: str, webapp_url: str) -> None:
+        self.webapp_buttons.append((chat_id, text, button_text, webapp_url))
 
 
 class FakeZoomOAuthClient:
@@ -161,6 +165,15 @@ def test_zoom_callback_endpoint_saves_token_and_returns_success():
     assert fake_client.exchanged_codes == ["zoom-auth-code"]
     assert session.query(ZoomToken).filter_by(user_id=teacher.id).one().zoom_user_id == "zoom-user-1"
     assert fake_notifier.messages == [(1001, ZOOM_CONNECTED_TEXT)]
+    assert fake_notifier.webapp_buttons == [
+        (
+            1001,
+            "Продолжите настройку в кабинете преподавателя: добавьте ученика или группу, "
+            "а затем привяжите Zoom-ссылку к нужному профилю.",
+            "Открыть кабинет",
+            "https://englishtutorai.ru/teacher/cards",
+        )
+    ]
     confirmation_text = fake_notifier.messages[0][1]
     assert "Zoom Web Portal" in confirmation_text
     assert "Settings → Recording" in confirmation_text

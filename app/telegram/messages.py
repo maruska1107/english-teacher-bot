@@ -29,6 +29,10 @@ ZOOM_CONNECTED_TEXT = (
     "4. Включите Audio transcription / Create audio transcript.\n"
     "5. После урока запись должна сохраниться в облаке Zoom."
 )
+ZOOM_CONNECTED_WEBAPP_TEXT = (
+    "Продолжите настройку в кабинете преподавателя: добавьте ученика или группу, "
+    "а затем привяжите Zoom-ссылку к нужному профилю."
+)
 ZOOM_MEETING_LINK_HELP_TEXT = (
     "Пришлите ссылку Zoom в формате:\n"
     "/add_zoom_meeting https://...zoom.us/j/123456789\n\n"

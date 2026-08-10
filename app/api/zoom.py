@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
 from app.services.lesson_processing import LessonProcessingService
-from app.telegram.messages import ZOOM_CONNECTED_TEXT
+from app.telegram.messages import ZOOM_CONNECTED_TEXT, ZOOM_CONNECTED_WEBAPP_TEXT
 from app.telegram.notifier import TelegramBotNotifier, TelegramNotifierProtocol
 from app.zoom.oauth import ZoomOAuthClient, ZoomOAuthClientProtocol, ZoomOAuthService
 from app.zoom.webhook_security import encrypted_url_validation_token, verify_zoom_webhook_signature
@@ -53,6 +53,12 @@ async def zoom_oauth_callback(
             detail="Invalid or expired OAuth state",
         ) from exc
     await notifier.send_message(token.user.telegram_user_id, ZOOM_CONNECTED_TEXT)
+    await notifier.send_webapp_button(
+        token.user.telegram_user_id,
+        ZOOM_CONNECTED_WEBAPP_TEXT,
+        "Открыть кабинет",
+        "https://englishtutorai.ru/teacher/cards",
+    )
     return {"status": "connected"}
 
 
