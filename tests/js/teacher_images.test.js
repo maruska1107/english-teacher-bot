@@ -257,6 +257,17 @@ test('teacher student detail keeps top nav stable and uses inner student tabs', 
   assert.ok(renderSelectedProfile.includes('Уроки'));
 });
 
+test('teacher profiles section exposes webapp create student and group form', () => {
+  assert.ok(browserSource.includes('Добавить ученика или группу'));
+  assert.ok(browserSource.includes('data-action="show-profile-form"'));
+  assert.ok(browserSource.includes('name="profile_type"'));
+  assert.ok(browserSource.includes('value="individual"'));
+  assert.ok(browserSource.includes('value="group"'));
+  assert.ok(browserSource.includes('/api/teacher/card-profiles'));
+  assert.ok(browserSource.includes('createLearningProfile'));
+  assert.ok(browserSource.includes('Ссылки для учеников'));
+});
+
 test('teacher student detail unifies student tabs and active content in one panel', () => {
   const renderSelectedProfile = extractFunction('renderSelectedProfile');
   assert.ok(renderSelectedProfile.includes('student-workspace'));

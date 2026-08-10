@@ -82,6 +82,42 @@ class TeacherCardProfileListResponse(BaseModel):
     profiles: list[TeacherCardProfileRead]
 
 
+class TeacherProfileCreateRequest(BaseModel):
+    profile_type: Literal["individual", "group"]
+    name: str = Field(min_length=1, max_length=120)
+    member_names: list[str] = Field(default_factory=list)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("name is required")
+        return normalized
+
+    @field_validator("member_names")
+    @classmethod
+    def normalize_members(cls, value: list[str]) -> list[str]:
+        member_names = []
+        seen_names = set()
+        for raw_name in value:
+            name = raw_name.strip()
+            if name and name not in seen_names:
+                member_names.append(name)
+                seen_names.add(name)
+        return member_names
+
+
+class TeacherProfileStudentInviteRead(BaseModel):
+    name: str
+    invite_link: str
+
+
+class TeacherProfileCreateResponse(BaseModel):
+    profile: TeacherCardProfileRead
+    students: list[TeacherProfileStudentInviteRead]
+
+
 class VocabularyCardCreate(BaseModel):
     learning_profile_id: int
     term: str = Field(min_length=1)

@@ -12,7 +12,7 @@ from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
-from app.models import LearningProfile, User, VocabularyCard
+from app.models import LearningProfile, Student, User, VocabularyCard
 from app.schemas.cards import CardImageCandidate
 from app.services.openverse_images import (
     OpenverseOperationResult,
@@ -259,6 +259,79 @@ def test_zoom_review_mode_still_rejects_unknown_webapp_user_without_start_or_oau
     )
 
     assert response.status_code == 403
+
+
+def test_teacher_can_create_individual_profile_from_webapp():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.commit()
+    client = make_client(session, settings=make_settings(telegram_bot_username="EnglishTutorHelperAIBot"))
+
+    response = client.post(
+        "/api/teacher/card-profiles",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+        json={"profile_type": "individual", "name": "Анна"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["profile"]["name"] == "Анна"
+    assert payload["profile"]["profile_type"] == "individual"
+    assert payload["students"] == [
+        {"name": "Анна", "invite_link": payload["students"][0]["invite_link"]}
+    ]
+    assert payload["students"][0]["invite_link"].startswith("https://t.me/EnglishTutorHelperAIBot?start=student_")
+    assert session.query(Student).filter_by(name="Анна").one().invite_token_hash is not None
+
+
+def test_teacher_can_create_group_profile_from_webapp_with_member_invites():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.commit()
+    client = make_client(session, settings=make_settings(telegram_bot_username="EnglishTutorHelperAIBot"))
+
+    response = client.post(
+        "/api/teacher/card-profiles",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+        json={"profile_type": "group", "name": "Speaking B1", "member_names": ["Анна", "Мария", "Анна"]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["profile"]["name"] == "Speaking B1"
+    assert payload["profile"]["profile_type"] == "group"
+    assert [student["name"] for student in payload["students"]] == ["Анна", "Мария"]
+    assert all(
+        student["invite_link"].startswith("https://t.me/EnglishTutorHelperAIBot?start=student_")
+        for student in payload["students"]
+    )
+    profile = session.query(LearningProfile).filter_by(name="Speaking B1").one()
+    assert sorted(member.student.name for member in profile.memberships) == ["Анна", "Мария"]
+
+
+def test_create_profile_rejects_missing_group_members_and_other_teacher():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    other_teacher = User(telegram_user_id=2002, role="teacher", is_active=True)
+    session.add_all([teacher, other_teacher])
+    session.commit()
+    client = make_client(session)
+
+    missing_members = client.post(
+        "/api/teacher/card-profiles",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+        json={"profile_type": "group", "name": "Speaking B1", "member_names": []},
+    )
+    forbidden = client.post(
+        "/api/teacher/card-profiles",
+        headers={"x-telegram-init-data": signed_init_data(2002)},
+        json={"profile_type": "individual", "name": "Анна"},
+    )
+
+    assert missing_members.status_code == 422
+    assert forbidden.status_code == 403
 
 
 def test_teacher_profile_repository_counts_new_and_published_cards():

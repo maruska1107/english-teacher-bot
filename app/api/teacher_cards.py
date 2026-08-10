@@ -19,6 +19,9 @@ from app.schemas.cards import (
     CardImageSelection,
     TeacherCardProfileListResponse,
     TeacherCardProfileRead,
+    TeacherProfileCreateRequest,
+    TeacherProfileCreateResponse,
+    TeacherProfileStudentInviteRead,
     VocabularyCardCreate,
     VocabularyCardListResponse,
     VocabularyCardRead,
@@ -32,6 +35,7 @@ from app.services.openverse_images import (
     enrich_card_image,
     get_openverse_image_client,
 )
+from app.telegram.invites import build_student_invite_link, generate_invite_token, hash_invite_token
 from app.telegram.webapp_auth import TelegramWebAppAuthError, verify_telegram_webapp_init_data
 
 router = APIRouter(prefix="/api/teacher/cards", tags=["teacher-cards"])
@@ -139,6 +143,49 @@ def list_card_profiles(
         profile_to_response(profile, new_count, published_count) for profile, new_count, published_count in rows
     ]
     return TeacherCardProfileListResponse(profiles=profiles)
+
+
+def _student_invite_response(settings: Settings, student) -> TeacherProfileStudentInviteRead:
+    raw_token = generate_invite_token()
+    student.invite_token_hash = hash_invite_token(raw_token)
+    student.invite_status = "active"
+    return TeacherProfileStudentInviteRead(
+        name=student.name,
+        invite_link=build_student_invite_link(settings.telegram_bot_username, raw_token),
+    )
+
+
+@profiles_router.post("", response_model=TeacherProfileCreateResponse)
+def create_card_profile(
+    payload: TeacherProfileCreateRequest,
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TeacherProfileCreateResponse:
+    repository = LearningProfileRepository(session)
+    if payload.profile_type == "individual":
+        profile, student = repository.create_individual_profile(
+            teacher_user_id=teacher.id,
+            student_name=payload.name,
+        )
+        students = [_student_invite_response(settings, student)]
+    else:
+        if not payload.member_names:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Group members are required")
+        profile = repository.create_group_profile(
+            teacher_user_id=teacher.id,
+            profile_name=payload.name,
+            member_names=payload.member_names,
+        )
+        students = [
+            _student_invite_response(settings, membership.student)
+            for membership in sorted(profile.memberships, key=lambda profile_member: profile_member.student.name)
+        ]
+    session.commit()
+    return TeacherProfileCreateResponse(
+        profile=profile_to_response(profile, new_count=0, published_count=0),
+        students=students,
+    )
 
 
 @router.get("", response_model=VocabularyCardListResponse)

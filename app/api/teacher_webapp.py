@@ -71,6 +71,7 @@ input, textarea {
   color: var(--text);
   outline: none;
 }
+input[type="radio"] { width: auto; margin-right: 6px; }
 input:focus, textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(116, 110, 159, 0.14);
@@ -144,6 +145,8 @@ let draftCards = [];
 let publishedCards = [];
 let selectedHomeworkItems = [];
 let addFormOpen = false;
+let profileFormOpen = false;
+let createdProfileInvites = [];
 const imageOptionsState = new Map();
 let imageOptionsRequestGeneration = 0;
 
@@ -225,15 +228,55 @@ function profileTemplate(profile) {
     </button>`;
 }
 
+function profileInviteLinksTemplate() {
+  if (!createdProfileInvites.length) return "";
+  const rows = createdProfileInvites.map((student) => `
+    <li><strong>${escapeHtml(student.name)}:</strong><br><code>${escapeHtml(student.invite_link)}</code></li>`).join("");
+  return `
+    <section class="panel">
+      <h2>Ссылки для учеников</h2>
+      <p class="lead">Отправьте каждому ученику его ссылку.</p>
+      <ul>${rows}</ul>
+    </section>`;
+}
+
+function profileCreateFormTemplate() {
+  if (!profileFormOpen) {
+    return `
+      <section class="panel">
+        <h2>Ученики и группы</h2>
+        <p class="lead">Добавьте ученика для индивидуальных уроков или группу для общих занятий.</p>
+        <button type="button" class="primary" data-action="show-profile-form">Добавить ученика или группу</button>
+      </section>`;
+  }
+  return `
+    <section class="panel" id="profile-create-form">
+      <h2>Добавить ученика или группу</h2>
+      <label>Что добавляем?</label>
+      <div class="actions">
+        <label><input type="radio" name="profile_type" value="individual" checked> Ученика</label>
+        <label><input type="radio" name="profile_type" value="group"> Группу</label>
+      </div>
+      <label>Имя ученика или название группы</label>
+      <input name="profile_name" placeholder="Например: Анна или Speaking B1">
+      <label>Ученики в группе</label>
+      <textarea name="member_names" placeholder="Анна, Мария, Катя"></textarea>
+      <p class="lead">Для одного ученика поле со списком можно оставить пустым.</p>
+      <div class="actions">
+        <button type="button" class="primary" data-action="create-profile">Создать</button>
+        <button type="button" class="secondary" data-action="hide-profile-form">Отмена</button>
+      </div>
+    </section>`;
+}
+
 function renderProfiles() {
   reviewsEl.classList.add("hidden");
   detailEl.classList.add("hidden");
   profilesEl.classList.remove("hidden");
-  if (!profiles.length) {
-    profilesEl.innerHTML = '<div class="empty">Профилей пока нет. Добавьте ученика или группу в Telegram.</div>';
-    return;
-  }
-  profilesEl.innerHTML = profiles.map(profileTemplate).join("");
+  const profileList = profiles.length
+    ? profiles.map(profileTemplate).join("")
+    : '<div class="empty">Профилей пока нет. Добавьте ученика или группу здесь.</div>';
+  profilesEl.innerHTML = `${profileCreateFormTemplate()}${profileInviteLinksTemplate()}${profileList}`;
 }
 
 function reviewCardTemplate(card) {
@@ -358,6 +401,49 @@ async function loadProfiles() {
   } catch (error) {
     profilesEl.innerHTML = `<div class="error">Ошибка загрузки: ${escapeHtml(error.message)}</div>`;
     setStatus("Ошибка");
+  }
+}
+
+function parseMemberNames(value) {
+  const names = [];
+  const seen = new Set();
+  for (const rawName of String(value || "").split(",")) {
+    const name = rawName.trim();
+    if (name && !seen.has(name)) {
+      names.push(name);
+      seen.add(name);
+    }
+  }
+  return names;
+}
+
+async function createLearningProfile(button) {
+  const form = button.closest("#profile-create-form");
+  const profileType = form.querySelector('[name="profile_type"]:checked').value;
+  const name = form.querySelector('[name="profile_name"]').value.trim();
+  const memberNames = parseMemberNames(form.querySelector('[name="member_names"]').value);
+  if (!name) {
+    setStatus("Введите имя ученика или название группы");
+    return;
+  }
+  if (profileType === "group" && !memberNames.length) {
+    setStatus("Добавьте учеников в группу через запятую");
+    return;
+  }
+  button.disabled = true;
+  try {
+    const result = await api("/api/teacher/card-profiles", {
+      method: "POST",
+      body: JSON.stringify({ profile_type: profileType, name, member_names: memberNames }),
+    });
+    profiles = [...profiles, result.profile];
+    createdProfileInvites = result.students || [];
+    profileFormOpen = false;
+    renderProfiles();
+    setStatus(profileType === "group" ? "Группа создана" : "Ученик создан");
+  } catch (error) {
+    button.disabled = false;
+    setStatus(`Ошибка: ${error.message}`);
   }
 }
 
@@ -878,6 +964,26 @@ async function removeCardImage(cardId) {
 
 profilesEl.addEventListener("click", async (event) => {
   event.preventDefault();
+  const actionButton = event.target.closest("button[data-action]");
+  if (actionButton) {
+    try {
+      if (actionButton.dataset.action === "show-profile-form") {
+        profileFormOpen = true;
+        createdProfileInvites = [];
+        renderProfiles();
+      }
+      if (actionButton.dataset.action === "hide-profile-form") {
+        profileFormOpen = false;
+        renderProfiles();
+      }
+      if (actionButton.dataset.action === "create-profile") {
+        await createLearningProfile(actionButton);
+      }
+    } catch (error) {
+      setStatus(`Ошибка: ${error.message}`);
+    }
+    return;
+  }
   const profileButton = event.target.closest("[data-profile-id]");
   if (!profileButton) return;
   await openProfile(profileButton.dataset.profileId);
