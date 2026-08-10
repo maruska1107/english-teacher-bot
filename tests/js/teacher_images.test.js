@@ -226,7 +226,20 @@ test('teacher webapp exposes lesson review section and confirmation API', () => 
   assert.ok(pythonSource.includes('⚙️ Настройки'));
   assert.ok(pythonSource.includes('/api/teacher/lesson-reviews'));
   assert.ok(pythonSource.includes('/confirm'));
-  assert.ok(pythonSource.includes('Подтвердить и отправить'));
+  assert.ok(pythonSource.includes('Подтвердить и отправить всё'));
+});
+
+test('teacher lesson review embeds editable lesson cards before unified send', () => {
+  const reviewTemplate = extractFunction('reviewTemplate');
+  const reviewCardTemplate = extractFunction('reviewCardTemplate');
+  assert.ok(reviewTemplate.includes('reviewCardTemplate'));
+  assert.ok(reviewTemplate.includes('🧠 Новые карточки'));
+  assert.ok(reviewCardTemplate.includes('data-review-card-id'));
+  assert.ok(reviewCardTemplate.includes('data-action="delete-review-card"'));
+  assert.ok(pythonSource.includes('/api/teacher/lesson-reviews/cards/${cardId}'));
+  assert.ok(pythonSource.includes('saveReviewCardEdits'));
+  assert.ok(pythonSource.includes('saveReviewCardsForLesson'));
+  assert.equal(pythonSource.includes('Проверить карточки'), false);
 });
 
 test('teacher student detail keeps top nav stable and uses inner student tabs', () => {

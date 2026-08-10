@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -8,6 +8,8 @@ from app.api.teacher_cards import get_current_teacher, get_teacher_profile_or_40
 from app.db.session import get_db_session
 from app.models import LearningProfileMember, Lesson, LessonAnalysis, Student, StudentHomework, User, VocabularyCard
 from app.repositories.student_homework import StudentHomeworkRepository
+from app.repositories.vocabulary_cards import VocabularyCardRepository
+from app.schemas.cards import VocabularyCardRead, VocabularyCardUpdate
 from app.schemas.student_cards import StudentHomeworkListResponse, StudentHomeworkRead
 from app.schemas.teacher_lesson_reviews import (
     TeacherLessonReviewConfirmResponse,
@@ -69,6 +71,36 @@ def _draft_card_count(session: Session, lesson_id: int) -> int:
     )
 
 
+def _draft_cards_for_lesson(session: Session, lesson_id: int) -> list[VocabularyCard]:
+    return list(
+        session.scalars(
+            select(VocabularyCard)
+            .where(VocabularyCard.lesson_id == lesson_id, VocabularyCard.status == "draft")
+            .order_by(VocabularyCard.created_at.desc(), VocabularyCard.id.desc())
+        )
+    )
+
+
+def _card_to_response(card: VocabularyCard) -> VocabularyCardRead:
+    return VocabularyCardRead(
+        id=card.id,
+        learning_profile_id=card.learning_profile_id,
+        term=card.term,
+        translation_ru=card.translation_ru,
+        definition_en=card.definition_en,
+        example_sentence=card.example_sentence,
+        source_phrase=card.source_phrase,
+        level=card.level,
+        status=card.status,
+        image_url=card.image_url,
+        image_source_url=card.image_source_url,
+        image_creator=card.image_creator,
+        image_license=card.image_license,
+        image_license_url=card.image_license_url,
+        image_search_query=card.image_search_query,
+    )
+
+
 def _student_for_lesson(session: Session, lesson: Lesson) -> Student | None:
     if lesson.learning_profile_id is None:
         return None
@@ -102,11 +134,13 @@ def _review_to_response(session: Session, analysis: LessonAnalysis) -> TeacherLe
         return None
     return TeacherLessonReviewRead(
         lesson_id=lesson.id,
+        profile_id=lesson.learning_profile_id,
         student_name=student.name,
         lesson_date_label="После урока",
         summary_text=_summary_text(analysis),
         homework_items=_homework_items(analysis),
         new_cards_count=_draft_card_count(session, lesson.id),
+        cards=[_card_to_response(card) for card in _draft_cards_for_lesson(session, lesson.id)],
     )
 
 
@@ -160,6 +194,7 @@ def confirm_lesson_review(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Lesson review already sent")
 
     analysis = lesson.analysis
+    published_count = VocabularyCardRepository(session).publish_draft_cards_for_lesson(teacher.id, lesson.id)
     homework = StudentHomeworkRepository(session).publish_current(
         student_id=student.id,
         learning_profile_id=lesson.learning_profile_id,
@@ -169,10 +204,51 @@ def confirm_lesson_review(
         wins_text=_wins_text(analysis),
         focus_text=_focus_text(analysis),
         homework_items=_homework_items(analysis),
-        new_cards_count=_draft_card_count(session, lesson.id),
+        new_cards_count=published_count,
     )
     session.commit()
     return TeacherLessonReviewConfirmResponse(**_homework_to_response(homework).model_dump())
+
+
+def _get_review_draft_card_or_404(session: Session, teacher: User, card_id: int) -> VocabularyCard:
+    card = session.scalar(
+        select(VocabularyCard)
+        .join(Lesson, Lesson.id == VocabularyCard.lesson_id)
+        .where(
+            VocabularyCard.id == card_id,
+            VocabularyCard.teacher_user_id == teacher.id,
+            VocabularyCard.status == "draft",
+            Lesson.teacher_user_id == teacher.id,
+        )
+    )
+    if card is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review card not found")
+    return card
+
+
+@router.patch("/cards/{card_id}", response_model=VocabularyCardRead)
+def update_review_card(
+    card_id: int,
+    payload: VocabularyCardUpdate,
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+) -> VocabularyCardRead:
+    card = _get_review_draft_card_or_404(session, teacher, card_id)
+    updated = VocabularyCardRepository(session).update_card(card, payload)
+    session.commit()
+    return _card_to_response(updated)
+
+
+@router.delete("/cards/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_review_card(
+    card_id: int,
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+) -> Response:
+    card = _get_review_draft_card_or_404(session, teacher, card_id)
+    VocabularyCardRepository(session).delete_card(card)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @homework_router.get("", response_model=StudentHomeworkListResponse)

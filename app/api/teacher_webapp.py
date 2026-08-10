@@ -236,7 +236,27 @@ function renderProfiles() {
   profilesEl.innerHTML = profiles.map(profileTemplate).join("");
 }
 
+function reviewCardTemplate(card) {
+  return `
+    <article class="card review-card" data-review-card-id="${card.id}">
+      ${cardImageTemplate(card)}
+      <label>Слово / фраза</label>
+      <input name="term" value="${escapeHtml(card.term)}">
+      <label>Перевод</label>
+      <input name="translation_ru" value="${escapeHtml(card.translation_ru)}">
+      <label>Пример</label>
+      <textarea name="example_sentence">${escapeHtml(card.example_sentence || "")}</textarea>
+      <div class="actions">
+        <button type="button" class="danger" data-action="delete-review-card">Удалить</button>
+      </div>
+    </article>`;
+}
+
 function reviewTemplate(review) {
+  const cards = review.cards || [];
+  const cardsHtml = cards.length
+    ? cards.map(reviewCardTemplate).join("")
+    : '<div class="empty">Новых карточек для этого урока нет.</div>';
   const homework = (review.homework_items || []).length
     ? `<ul>${review.homework_items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
     : '<p class="readonly-line">Домашка не указана.</p>';
@@ -247,11 +267,11 @@ function reviewTemplate(review) {
       <p>${escapeHtml(review.summary_text)}</p>
       <h3>📝 Домашка</h3>
       ${homework}
-      <div class="profile-meta">
-        <span class="badge badge-new">${Number(review.new_cards_count || 0)} новых слов</span>
-      </div>
+      <h3>🧠 Новые карточки: ${cards.length}</h3>
+      <p class="lead">Проверьте карточки здесь. Ученику они станут видны после отправки всего урока.</p>
+      <div class="review-cards">${cardsHtml}</div>
       <div class="actions">
-        <button type="button" class="primary" data-action="confirm-review">Подтвердить и отправить</button>
+        <button type="button" class="primary" data-action="confirm-review">Подтвердить и отправить всё</button>
       </div>
     </article>`;
 }
@@ -286,11 +306,36 @@ async function loadLessonReviews() {
   }
 }
 
+async function saveReviewCardEdits(cardEl) {
+  const cardId = cardEl.dataset.reviewCardId;
+  await api(`/api/teacher/lesson-reviews/cards/${cardId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      term: cardEl.querySelector('[name="term"]').value,
+      translation_ru: cardEl.querySelector('[name="translation_ru"]').value,
+      example_sentence: cardEl.querySelector('[name="example_sentence"]').value,
+    }),
+  });
+}
+
+async function saveReviewCardsForLesson(lessonEl) {
+  const cardEls = Array.from(lessonEl.querySelectorAll("[data-review-card-id]"));
+  await Promise.all(cardEls.map(saveReviewCardEdits));
+}
+
+async function deleteReviewCard(cardId) {
+  if (!confirm("Удалить эту карточку из урока?")) return;
+  await api(`/api/teacher/lesson-reviews/cards/${cardId}`, { method: "DELETE" });
+  await loadLessonReviews();
+  setStatus("Карточка удалена из урока");
+}
+
 async function confirmLessonReview(lessonId, button) {
   button.disabled = true;
   try {
+    await saveReviewCardsForLesson(button.closest("[data-lesson-id]"));
     await api(`/api/teacher/lesson-reviews/${lessonId}/confirm`, { method: "POST" });
-    setStatus("Домашка отправлена ученику");
+    setStatus("Домашка и карточки отправлены ученику");
     await loadLessonReviews();
   } catch (error) {
     button.disabled = false;
@@ -855,10 +900,19 @@ topTabsEl.addEventListener("click", async (event) => {
 });
 
 reviewsEl.addEventListener("click", async (event) => {
-  const button = event.target.closest("button[data-action='confirm-review']");
+  const button = event.target.closest("button[data-action]");
   if (!button) return;
   event.preventDefault();
-  await confirmLessonReview(button.closest("[data-lesson-id]").dataset.lessonId, button);
+  try {
+    if (button.dataset.action === "confirm-review") {
+      await confirmLessonReview(button.closest("[data-lesson-id]").dataset.lessonId, button);
+    }
+    if (button.dataset.action === "delete-review-card") {
+      await deleteReviewCard(button.closest("[data-review-card-id]").dataset.reviewCardId);
+    }
+  } catch (error) {
+    setStatus(`Ошибка: ${error.message}`);
+  }
 });
 
 detailEl.addEventListener("input", (event) => {

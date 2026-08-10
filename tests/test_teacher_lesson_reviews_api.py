@@ -144,6 +144,43 @@ def test_teacher_can_list_pending_lesson_reviews():
                 "summary_text": "Сегодня говорили о путешествиях и Past Simple.",
                 "homework_items": ["Exercise 4, page 32", "повторить 8 новых слов"],
                 "new_cards_count": 2,
+                "profile_id": lesson.learning_profile_id,
+                "cards": [
+                    {
+                        "id": lesson.vocabulary_cards[1].id,
+                        "learning_profile_id": lesson.learning_profile_id,
+                        "term": "fluency",
+                        "translation_ru": "беглость речи",
+                        "definition_en": None,
+                        "example_sentence": None,
+                        "source_phrase": None,
+                        "level": None,
+                        "status": "draft",
+                        "image_url": None,
+                        "image_source_url": None,
+                        "image_creator": None,
+                        "image_license": None,
+                        "image_license_url": None,
+                        "image_search_query": None,
+                    },
+                    {
+                        "id": lesson.vocabulary_cards[0].id,
+                        "learning_profile_id": lesson.learning_profile_id,
+                        "term": "journey",
+                        "translation_ru": "путешествие",
+                        "definition_en": None,
+                        "example_sentence": None,
+                        "source_phrase": None,
+                        "level": None,
+                        "status": "draft",
+                        "image_url": None,
+                        "image_source_url": None,
+                        "image_creator": None,
+                        "image_license": None,
+                        "image_license_url": None,
+                        "image_search_query": None,
+                    },
+                ],
             }
         ]
     }
@@ -171,9 +208,85 @@ def test_teacher_confirm_publishes_homework_and_removes_pending_review():
     assert "We was in Italy." in homework.focus_text
     assert homework.homework_items == ["Exercise 4, page 32", "повторить 8 новых слов"]
     assert homework.new_cards_count == 2
+    assert {card.status for card in lesson.vocabulary_cards} == {"published"}
 
     pending = client.get("/api/teacher/lesson-reviews", headers={"x-telegram-init-data": signed_init_data(1001)})
     assert pending.json() == {"reviews": []}
+
+
+def test_teacher_can_edit_and_delete_review_draft_cards_before_confirm():
+    session = make_session()
+    _, _, _, lesson = seed_review_lesson(session)
+    client = make_client(session)
+    journey_card, fluency_card = sorted(lesson.vocabulary_cards, key=lambda card: card.term)
+
+    updated = client.patch(
+        f"/api/teacher/lesson-reviews/cards/{journey_card.id}",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+        json={"term": "journey updated", "translation_ru": "поездка", "example_sentence": "A long journey."},
+    )
+    deleted = client.delete(
+        f"/api/teacher/lesson-reviews/cards/{fluency_card.id}",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+    confirmed = client.post(
+        f"/api/teacher/lesson-reviews/{lesson.id}/confirm",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["term"] == "journey updated"
+    assert deleted.status_code == 204
+    assert confirmed.status_code == 200
+    cards = session.query(VocabularyCard).filter_by(lesson_id=lesson.id).all()
+    assert [(card.term, card.status) for card in cards] == [("journey updated", "published")]
+
+
+def test_teacher_review_confirm_publishes_only_cards_from_that_lesson():
+    session = make_session()
+    _, _, profile, lesson = seed_review_lesson(session)
+    client = make_client(session)
+    manual_card = VocabularyCard(
+        teacher_user_id=lesson.teacher_user_id,
+        learning_profile_id=profile.id,
+        lesson_id=None,
+        term="manual",
+        translation_ru="ручная",
+        status="draft",
+    )
+    session.add(manual_card)
+    session.commit()
+
+    response = client.post(
+        f"/api/teacher/lesson-reviews/{lesson.id}/confirm",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+
+    assert response.status_code == 200
+    assert {card.status for card in lesson.vocabulary_cards} == {"published"}
+    assert manual_card.status == "draft"
+
+
+def test_teacher_cannot_edit_foreign_or_published_review_card():
+    session = make_session()
+    _, _, _, lesson = seed_review_lesson(session)
+    client = make_client(session)
+    card = lesson.vocabulary_cards[0]
+
+    foreign = client.patch(
+        f"/api/teacher/lesson-reviews/cards/{card.id}",
+        headers={"x-telegram-init-data": signed_init_data(2002)},
+        json={"term": "bad"},
+    )
+    card.status = "published"
+    session.commit()
+    published = client.delete(
+        f"/api/teacher/lesson-reviews/cards/{card.id}",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+
+    assert foreign.status_code == 404
+    assert published.status_code == 404
 
 
 def test_teacher_confirm_rejects_repeated_or_foreign_lesson():

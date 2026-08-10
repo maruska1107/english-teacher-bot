@@ -166,3 +166,20 @@ class VocabularyCardRepository:
             self.set_status(card, "published")
         self.session.flush()
         return len(cards)
+
+    def publish_draft_cards_for_lesson(self, teacher_user_id: int, lesson_id: int) -> int:
+        cards = list(
+            self.session.scalars(
+                select(VocabularyCard)
+                .where(
+                    VocabularyCard.teacher_user_id == teacher_user_id,
+                    VocabularyCard.lesson_id == lesson_id,
+                    VocabularyCard.status == "draft",
+                )
+                .order_by(VocabularyCard.created_at.desc(), VocabularyCard.id.desc())
+            )
+        )
+        for card in cards:
+            self.set_status(card, "published")
+        self.session.flush()
+        return len(cards)
