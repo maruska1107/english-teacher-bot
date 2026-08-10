@@ -26,12 +26,16 @@ class FakeTelegramGateway:
     def __init__(self) -> None:
         self.sent_messages: list[tuple[int, str]] = []
         self.webapp_buttons: list[tuple[int, str, str, str]] = []
+        self.inline_buttons: list[tuple[int, str, list[tuple[str, str]]]] = []
 
     async def send_message(self, chat_id: int, text: str) -> None:
         self.sent_messages.append((chat_id, text))
 
     async def send_webapp_button(self, chat_id: int, text: str, button_text: str, webapp_url: str) -> None:
         self.webapp_buttons.append((chat_id, text, button_text, webapp_url))
+
+    async def send_inline_buttons(self, chat_id: int, text: str, buttons: list[tuple[str, str]]) -> None:
+        self.inline_buttons.append((chat_id, text, buttons))
 
 
 class FakeSeedImageClient:
@@ -568,9 +572,77 @@ async def test_add_group_returns_help_for_invalid_format():
     assert gateway.sent_messages == [
         (
             555,
-            "Пришлите группу в формате:\n/add_group Название группы: Анна, Мария",
+            "Создадим группу для общих уроков.\n\n"
+            "Сначала отправьте название группы.\n"
+            "Например: Speaking B1",
         )
     ]
+
+
+async def test_add_group_without_args_starts_step_by_step_flow():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.handle_add_group(telegram_user_id=1001, chat_id=555)
+
+    assert gateway.sent_messages == [
+        (
+            555,
+            "Создадим группу для общих уроков.\n\n"
+            "Сначала отправьте название группы.\n"
+            "Например: Speaking B1",
+        )
+    ]
+
+
+async def test_group_creation_preview_uses_inline_confirmation_buttons():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.handle_group_members_preview(
+        chat_id=555,
+        group_name="Speaking B1",
+        raw_member_names="Анна, Мария, Анна",
+    )
+
+    assert gateway.inline_buttons == [
+        (
+            555,
+            "Проверьте группу:\n\n"
+            "Группа: Speaking B1\n"
+            "Ученики:\n"
+            "- Анна\n"
+            "- Мария\n\n"
+            "Создать группу?",
+            [("Да, создать", "group_create_confirm"), ("Изменить", "group_create_change")],
+        )
+    ]
+
+
+async def test_group_creation_confirm_creates_group_from_collected_steps():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(session=session, gateway=gateway, settings=make_settings())
+
+    await service.confirm_group_creation(
+        telegram_user_id=1001,
+        chat_id=555,
+        group_name="Speaking B1",
+        member_names=["Анна", "Мария"],
+    )
+
+    profile = session.query(LearningProfile).filter_by(name="Speaking B1").one()
+    assert profile.profile_type == "group"
+    assert sorted(member.student.name for member in profile.memberships) == ["Анна", "Мария"]
+    message = gateway.sent_messages[0][1]
+    assert "Группа создана ✅" in message
+    assert "Ученики:" in message
+    assert "- Анна" in message
+    assert "- Мария" in message
+    assert "Следующий шаг" in message
+    assert "/add_zoom_meeting ссылка | Speaking B1" in message
 
 
 async def test_cards_command_returns_teacher_webapp_button():

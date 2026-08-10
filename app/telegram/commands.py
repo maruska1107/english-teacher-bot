@@ -42,6 +42,8 @@ class TelegramGateway(Protocol):
 
     async def send_webapp_button(self, chat_id: int, text: str, button_text: str, webapp_url: str) -> None: ...
 
+    async def send_inline_buttons(self, chat_id: int, text: str, buttons: list[tuple[str, str]]) -> None: ...
+
 
 def extract_zoom_meeting_id(meeting_link: str) -> str | None:
     value = meeting_link.strip()
@@ -191,25 +193,85 @@ class TelegramCommandService:
             return
         group_name, member_names = self._parse_group_spec(group_spec)
         if group_name is None or not member_names:
-            await self.gateway.send_message(
-                chat_id,
-                "Пришлите группу в формате:\n/add_group Название группы: Анна, Мария",
-            )
+            await self.prompt_group_name(chat_id)
+            return
+        await self.confirm_group_creation(
+            telegram_user_id=telegram_user_id,
+            chat_id=chat_id,
+            group_name=group_name,
+            member_names=member_names,
+        )
+
+    async def prompt_group_name(self, chat_id: int) -> None:
+        await self.gateway.send_message(
+            chat_id,
+            "Создадим группу для общих уроков.\n\n"
+            "Сначала отправьте название группы.\n"
+            "Например: Speaking B1",
+        )
+
+    async def prompt_group_members(self, chat_id: int, group_name: str) -> None:
+        await self.gateway.send_message(
+            chat_id,
+            f"Группа: {group_name.strip()}\n\n"
+            "Теперь отправьте имена учеников через запятую.\n"
+            "Например: Анна, Мария, Катя",
+        )
+
+    async def handle_group_members_preview(
+        self,
+        chat_id: int,
+        group_name: str,
+        raw_member_names: str,
+    ) -> list[str] | None:
+        member_names = self._parse_member_names(raw_member_names)
+        if not group_name.strip() or not member_names:
+            await self.prompt_group_members(chat_id=chat_id, group_name=group_name)
+            return None
+        member_lines = "\n".join(f"- {name}" for name in member_names)
+        await self.gateway.send_inline_buttons(
+            chat_id,
+            "Проверьте группу:\n\n"
+            f"Группа: {group_name.strip()}\n"
+            "Ученики:\n"
+            f"{member_lines}\n\n"
+            "Создать группу?",
+            [("Да, создать", "group_create_confirm"), ("Изменить", "group_create_change")],
+        )
+        return member_names
+
+    async def confirm_group_creation(
+        self,
+        telegram_user_id: int,
+        chat_id: int,
+        group_name: str,
+        member_names: list[str],
+    ) -> None:
+        if not await self._ensure_allowed_teacher(telegram_user_id, chat_id):
             return
         user = self.users.get_by_telegram_id(telegram_user_id)
         assert user is not None
         profile = self.learning_profiles.create_group_profile(
             teacher_user_id=user.id,
-            profile_name=group_name,
+            profile_name=group_name.strip(),
             member_names=member_names,
         )
         invite_lines = []
+        member_lines = []
         for member in sorted(profile.memberships, key=lambda profile_member: profile_member.student.name):
+            member_lines.append(f"- {member.student.name}")
             invite_lines.append(f"{member.student.name}: {self._refresh_student_invite_link(member.student)}")
         self.session.commit()
         await self.gateway.send_message(
             chat_id,
-            "Группа создана ✅\n\n" f"{profile.name}\n\n" "Ссылки для учеников:\n" + "\n".join(invite_lines),
+            "Группа создана ✅\n\n"
+            f"{profile.name}\n\n"
+            "Ученики:\n"
+            + "\n".join(member_lines)
+            + "\n\nСсылки для учеников:\n"
+            + "\n".join(invite_lines)
+            + "\n\nСледующий шаг:\n"
+            f"добавьте Zoom-ссылку для этой группы:\n/add_zoom_meeting ссылка | {profile.name}",
         )
 
     async def handle_cards(self, telegram_user_id: int, chat_id: int) -> None:
@@ -437,6 +499,9 @@ class TelegramCommandService:
         if ":" not in group_spec:
             return None, []
         group_name, raw_members = group_spec.split(":", 1)
+        return group_name.strip() or None, self._parse_member_names(raw_members)
+
+    def _parse_member_names(self, raw_members: str) -> list[str]:
         member_names = []
         seen_names = set()
         for raw_name in raw_members.split(","):
@@ -444,7 +509,7 @@ class TelegramCommandService:
             if name and name not in seen_names:
                 member_names.append(name)
                 seen_names.add(name)
-        return group_name.strip() or None, member_names
+        return member_names
 
     def _parse_meeting_profile_spec(self, meeting_link: str) -> tuple[str, str | None]:
         if "|" not in meeting_link:
