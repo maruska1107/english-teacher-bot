@@ -33,6 +33,12 @@ ZOOM_CONNECTED_WEBAPP_TEXT = (
     "Продолжите настройку в кабинете преподавателя: добавьте ученика или группу, "
     "а затем привяжите Zoom-ссылку к нужному профилю."
 )
+STUDENT_HOMEWORK_READY_TEXT_TEMPLATE = "✨ Итоги урока готовы\n\n📝 Домашка добавлена\n🧠 Новые карточки: {card_count}"
+TEACHER_LESSON_READY_TEXT_TEMPLATE = "✨ Урок готов к проверке\n\nНовые карточки: {card_count}"
+TEACHER_LESSON_READY_WEBAPP_TEXT = (
+    "Откройте раздел «На проверку», проверьте итоги, домашку и карточки, "
+    "а затем отправьте всё ученику."
+)
 ZOOM_MEETING_LINK_HELP_TEXT = (
     "Пришлите ссылку Zoom в формате:\n"
     "/add_zoom_meeting https://...zoom.us/j/123456789\n\n"

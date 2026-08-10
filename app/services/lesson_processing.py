@@ -4,6 +4,7 @@ from app.analysis.service import AnalysisService, LLMJsonClient
 from app.core.config import Settings
 from app.models import Lesson, VocabularyCard
 from app.repositories.zoom_tokens import ZoomTokenRepository
+from app.telegram.messages import TEACHER_LESSON_READY_TEXT_TEMPLATE, TEACHER_LESSON_READY_WEBAPP_TEXT
 from app.telegram.notifier import TelegramBotNotifier, TelegramNotifierProtocol
 from app.zoom.transcripts import TranscriptClientProtocol, ZoomTranscriptClient
 
@@ -42,6 +43,12 @@ class LessonProcessingService:
             await self._notifier().send_message(
                 lesson.teacher.telegram_user_id,
                 self._teacher_message(analysis.teacher_report, draft_card_count),
+            )
+            await self._notifier().send_webapp_button(
+                lesson.teacher.telegram_user_id,
+                TEACHER_LESSON_READY_WEBAPP_TEXT,
+                "Открыть На проверку",
+                "https://englishtutorai.ru/teacher/cards",
             )
             if self.settings.telegram_admin_id is not None:
                 await self._notifier().send_message(
@@ -90,7 +97,4 @@ class LessonProcessingService:
         return self.session.query(VocabularyCard).filter_by(lesson_id=lesson_id, status="draft").count()
 
     def _teacher_message(self, teacher_report: str, draft_card_count: int = 0) -> str:
-        message = f"Отчёт по уроку готов\n\n{teacher_report}"
-        if draft_card_count:
-            message = f"{message}\n\nНовые draft-карточки: {draft_card_count}"
-        return message
+        return TEACHER_LESSON_READY_TEXT_TEMPLATE.format(card_count=draft_card_count)

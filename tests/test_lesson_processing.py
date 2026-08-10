@@ -51,9 +51,13 @@ class FakeLLMClient:
 class FakeTelegramNotifier:
     def __init__(self) -> None:
         self.messages: list[tuple[int, str]] = []
+        self.webapp_buttons: list[tuple[int, str, str, str]] = []
 
     async def send_message(self, chat_id: int, text: str) -> None:
         self.messages.append((chat_id, text))
+
+    async def send_webapp_button(self, chat_id: int, text: str, button_text: str, webapp_url: str) -> None:
+        self.webapp_buttons.append((chat_id, text, button_text, webapp_url))
 
 
 def make_session() -> Session:
@@ -117,7 +121,16 @@ async def test_process_pending_lesson_downloads_transcript_analyzes_and_notifies
     assert processed_lesson.processing_status == "completed"
     assert processed_lesson.analysis is not None
     assert notifier.messages[0][0] == 1001
-    assert "Отчёт по уроку" in notifier.messages[0][1]
-    assert "Новые draft-карточки: 1" in notifier.messages[0][1]
+    assert "✨ Урок готов к проверке" in notifier.messages[0][1]
+    assert "Новые карточки: 1" in notifier.messages[0][1]
+    assert notifier.webapp_buttons == [
+        (
+            1001,
+            "Откройте раздел «На проверку», проверьте итоги, домашку и карточки, "
+            "а затем отправьте всё ученику.",
+            "Открыть На проверку",
+            "https://englishtutorai.ru/teacher/cards",
+        )
+    ]
     assert notifier.messages[1][0] == 9001
     assert "Скопирован отчёт по уроку" in notifier.messages[1][1]

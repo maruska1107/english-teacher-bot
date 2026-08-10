@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.api.teacher_lesson_reviews import get_telegram_notifier
 from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.session import get_db_session
@@ -39,6 +40,18 @@ def make_settings() -> Settings:
     return Settings(app_env="test", telegram_bot_token="test-bot-token", allowed_telegram_teacher_ids="1001,2002")
 
 
+class FakeTelegramNotifier:
+    def __init__(self) -> None:
+        self.messages: list[tuple[int, str]] = []
+        self.webapp_buttons: list[tuple[int, str, str, str]] = []
+
+    async def send_message(self, chat_id: int, text: str) -> None:
+        self.messages.append((chat_id, text))
+
+    async def send_webapp_button(self, chat_id: int, text: str, button_text: str, webapp_url: str) -> None:
+        self.webapp_buttons.append((chat_id, text, button_text, webapp_url))
+
+
 def signed_init_data(telegram_user_id: int, bot_token: str = "test-bot-token") -> str:
     fields = {
         "auth_date": "1780000000",
@@ -51,7 +64,7 @@ def signed_init_data(telegram_user_id: int, bot_token: str = "test-bot-token") -
     return "&".join(f"{key}={quote(value)}" for key, value in {**fields, "hash": signature}.items())
 
 
-def make_client(session: Session) -> TestClient:
+def make_client(session: Session, notifier: FakeTelegramNotifier | None = None) -> TestClient:
     app = create_app()
     app.dependency_overrides[get_settings] = make_settings
 
@@ -59,6 +72,7 @@ def make_client(session: Session) -> TestClient:
         yield session
 
     app.dependency_overrides[get_db_session] = override_db_session
+    app.dependency_overrides[get_telegram_notifier] = lambda: notifier or FakeTelegramNotifier()
     return TestClient(app)
 
 
@@ -212,6 +226,29 @@ def test_teacher_confirm_publishes_homework_and_removes_pending_review():
 
     pending = client.get("/api/teacher/lesson-reviews", headers={"x-telegram-init-data": signed_init_data(1001)})
     assert pending.json() == {"reviews": []}
+
+
+def test_teacher_confirm_notifies_connected_students_with_homework_and_cards_link():
+    session = make_session()
+    _, student, _, lesson = seed_review_lesson(session)
+    notifier = FakeTelegramNotifier()
+    client = make_client(session, notifier=notifier)
+
+    response = client.post(
+        f"/api/teacher/lesson-reviews/{lesson.id}/confirm",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+
+    assert response.status_code == 200
+    assert student.telegram_user_id is not None
+    assert notifier.webapp_buttons == [
+        (
+            student.telegram_user_id,
+            "✨ Итоги урока готовы\n\n📝 Домашка добавлена\n🧠 Новые карточки: 2",
+            "Открыть ДЗ и карточки",
+            "https://englishtutorai.ru/student/cards",
+        )
+    ]
 
 
 def test_teacher_can_edit_and_delete_review_draft_cards_before_confirm():
