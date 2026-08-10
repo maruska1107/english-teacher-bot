@@ -268,6 +268,21 @@ test('teacher profiles section exposes webapp create student and group form', ()
   assert.ok(browserSource.includes('Ссылки для учеников'));
 });
 
+test('teacher profile create form lets radio buttons switch and hides group members for individuals', () => {
+  const profileCreateFormTemplate = extractFunction('profileCreateFormTemplate');
+  assert.ok(profileCreateFormTemplate.includes('individualChecked'));
+  assert.ok(profileCreateFormTemplate.includes('groupChecked'));
+  assert.ok(profileCreateFormTemplate.includes('profile-member-fields'));
+  assert.ok(profileCreateFormTemplate.includes('memberFieldsClass'));
+  assert.ok(browserSource.includes('profilesEl.addEventListener("change"'));
+  assert.ok(browserSource.includes('profileFormType = event.target.value'));
+
+  const profilesClickHandlerStart = browserSource.indexOf('profilesEl.addEventListener("click"');
+  const firstPreventDefault = browserSource.indexOf('event.preventDefault()', profilesClickHandlerStart);
+  const firstActionButton = browserSource.indexOf('const actionButton', profilesClickHandlerStart);
+  assert.ok(firstPreventDefault > firstActionButton, 'profiles click handler must not prevent radio defaults globally');
+});
+
 test('teacher student detail unifies student tabs and active content in one panel', () => {
   const renderSelectedProfile = extractFunction('renderSelectedProfile');
   assert.ok(renderSelectedProfile.includes('student-workspace'));

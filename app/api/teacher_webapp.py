@@ -146,6 +146,7 @@ let publishedCards = [];
 let selectedHomeworkItems = [];
 let addFormOpen = false;
 let profileFormOpen = false;
+let profileFormType = "individual";
 let createdProfileInvites = [];
 const imageOptionsState = new Map();
 let imageOptionsRequestGeneration = 0;
@@ -241,6 +242,9 @@ function profileInviteLinksTemplate() {
 }
 
 function profileCreateFormTemplate() {
+  const individualChecked = profileFormType === "individual" ? "checked" : "";
+  const groupChecked = profileFormType === "group" ? "checked" : "";
+  const memberFieldsClass = profileFormType !== "group" ? "hidden" : "";
   if (!profileFormOpen) {
     return `
       <section class="panel">
@@ -254,14 +258,16 @@ function profileCreateFormTemplate() {
       <h2>Добавить ученика или группу</h2>
       <label>Что добавляем?</label>
       <div class="actions">
-        <label><input type="radio" name="profile_type" value="individual" checked> Ученика</label>
-        <label><input type="radio" name="profile_type" value="group"> Группу</label>
+        <label><input type="radio" name="profile_type" value="individual" ${individualChecked}> Ученика</label>
+        <label><input type="radio" name="profile_type" value="group" ${groupChecked}> Группу</label>
       </div>
       <label>Имя ученика или название группы</label>
       <input name="profile_name" placeholder="Например: Анна или Speaking B1">
-      <label>Ученики в группе</label>
-      <textarea name="member_names" placeholder="Анна, Мария, Катя"></textarea>
-      <p class="lead">Для одного ученика поле со списком можно оставить пустым.</p>
+      <div class="profile-member-fields ${memberFieldsClass}">
+        <label>Ученики в группе</label>
+        <textarea name="member_names" placeholder="Анна, Мария, Катя"></textarea>
+      </div>
+      <p class="lead">Для ученика достаточно имени. Для группы добавьте участников через запятую.</p>
       <div class="actions">
         <button type="button" class="primary" data-action="create-profile">Создать</button>
         <button type="button" class="secondary" data-action="hide-profile-form">Отмена</button>
@@ -963,12 +969,13 @@ async function removeCardImage(cardId) {
 }
 
 profilesEl.addEventListener("click", async (event) => {
-  event.preventDefault();
   const actionButton = event.target.closest("button[data-action]");
   if (actionButton) {
+    event.preventDefault();
     try {
       if (actionButton.dataset.action === "show-profile-form") {
         profileFormOpen = true;
+        profileFormType = "individual";
         createdProfileInvites = [];
         renderProfiles();
       }
@@ -986,7 +993,14 @@ profilesEl.addEventListener("click", async (event) => {
   }
   const profileButton = event.target.closest("[data-profile-id]");
   if (!profileButton) return;
+  event.preventDefault();
   await openProfile(profileButton.dataset.profileId);
+});
+
+profilesEl.addEventListener("change", (event) => {
+  if (!event.target.matches('[name="profile_type"]')) return;
+  profileFormType = event.target.value;
+  renderProfiles();
 });
 
 topTabsEl.addEventListener("click", async (event) => {
