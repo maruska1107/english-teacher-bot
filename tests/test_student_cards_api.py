@@ -13,6 +13,7 @@ from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
 from app.models import LearningProfile, LearningProfileMember, Student, StudentCardProgress, User, VocabularyCard
+from app.repositories.student_homework import StudentHomeworkRepository
 
 
 def make_session() -> Session:
@@ -189,3 +190,70 @@ def test_student_cards_api_rejects_unknown_student_and_draft_progress():
 
     assert unknown.status_code == 403
     assert draft.status_code == 404
+
+
+def test_student_can_list_current_and_previous_homework():
+    session = make_session()
+    student, _, _ = seed_student_cards(session)
+    profile = session.query(LearningProfile).filter_by(name="Анна").one()
+    repository = StudentHomeworkRepository(session)
+    repository.publish_current(
+        student_id=student.id,
+        learning_profile_id=profile.id,
+        lesson_id=None,
+        lesson_date_label="После урока 5 августа",
+        summary_text="Говорили о путешествиях.",
+        wins_text="Более длинные ответы.",
+        focus_text="Past Simple questions",
+        homework_items=["old homework"],
+        new_cards_count=5,
+    )
+    repository.publish_current(
+        student_id=student.id,
+        learning_profile_id=profile.id,
+        lesson_id=None,
+        lesson_date_label="После урока 10 августа",
+        summary_text="Практиковали Past Simple.",
+        wins_text="Хорошо использовала лексику.",
+        focus_text="was / were",
+        homework_items=["Exercise 4, page 32", "повторить 8 слов"],
+        new_cards_count=8,
+    )
+    session.commit()
+    client = make_client(session)
+
+    response = client.get("/api/student/homework", headers={"x-telegram-init-data": signed_init_data(3003)})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "slot": "current",
+                "lesson_date_label": "После урока 10 августа",
+                "summary_text": "Практиковали Past Simple.",
+                "wins_text": "Хорошо использовала лексику.",
+                "focus_text": "was / were",
+                "homework_items": ["Exercise 4, page 32", "повторить 8 слов"],
+                "new_cards_count": 8,
+            },
+            {
+                "slot": "previous",
+                "lesson_date_label": "После урока 5 августа",
+                "summary_text": "Говорили о путешествиях.",
+                "wins_text": "Более длинные ответы.",
+                "focus_text": "Past Simple questions",
+                "homework_items": ["old homework"],
+                "new_cards_count": 5,
+            },
+        ]
+    }
+
+
+def test_student_homework_api_rejects_unknown_student():
+    session = make_session()
+    seed_student_cards(session)
+    client = make_client(session)
+
+    response = client.get("/api/student/homework", headers={"x-telegram-init-data": signed_init_data(9999)})
+
+    assert response.status_code == 403

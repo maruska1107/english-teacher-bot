@@ -27,3 +27,17 @@ class StudentCardProgressResponse(BaseModel):
     card_id: int
     status: str
     review_count: int
+
+
+class StudentHomeworkRead(BaseModel):
+    slot: str
+    lesson_date_label: str
+    summary_text: str
+    wins_text: str
+    focus_text: str
+    homework_items: list[str]
+    new_cards_count: int
+
+
+class StudentHomeworkListResponse(BaseModel):
+    items: list[StudentHomeworkRead]

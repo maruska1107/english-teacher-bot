@@ -7,6 +7,7 @@ from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
 from app.models import Student, VocabularyCard
 from app.repositories.student_card_progress import StudentCardProgressRepository
+from app.repositories.student_homework import StudentHomeworkRepository
 from app.repositories.students import StudentRepository
 from app.repositories.vocabulary_cards import VocabularyCardRepository
 from app.schemas.student_cards import (
@@ -14,10 +15,13 @@ from app.schemas.student_cards import (
     StudentCardProgressResponse,
     StudentCardProgressUpdate,
     StudentCardRead,
+    StudentHomeworkListResponse,
+    StudentHomeworkRead,
 )
 from app.telegram.webapp_auth import TelegramWebAppAuthError, verify_telegram_webapp_init_data
 
 router = APIRouter(prefix="/api/student/cards", tags=["student-cards"])
+homework_router = APIRouter(prefix="/api/student/homework", tags=["student-homework"])
 
 
 def get_current_student(
@@ -53,6 +57,18 @@ def card_to_response(card: VocabularyCard, progress_status: str) -> StudentCardR
     )
 
 
+def homework_to_response(homework) -> StudentHomeworkRead:
+    return StudentHomeworkRead(
+        slot=homework.slot,
+        lesson_date_label=homework.lesson_date_label,
+        summary_text=homework.summary_text,
+        wins_text=homework.wins_text,
+        focus_text=homework.focus_text,
+        homework_items=homework.homework_items,
+        new_cards_count=homework.new_cards_count,
+    )
+
+
 @router.get("", response_model=StudentCardListResponse)
 def list_student_cards(
     session: Annotated[Session, Depends(get_db_session)],
@@ -79,3 +95,12 @@ def update_student_card_progress(
     )
     session.commit()
     return StudentCardProgressResponse(card_id=card.id, status=progress.status, review_count=progress.review_count)
+
+
+@homework_router.get("", response_model=StudentHomeworkListResponse)
+def list_student_homework(
+    session: Annotated[Session, Depends(get_db_session)],
+    student: Annotated[Student, Depends(get_current_student)],
+) -> StudentHomeworkListResponse:
+    items = StudentHomeworkRepository(session).current_and_previous(student.id)
+    return StudentHomeworkListResponse(items=[homework_to_response(item) for item in items])
