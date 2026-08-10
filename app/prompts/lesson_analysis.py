@@ -1,7 +1,14 @@
-PROMPT_VERSION = "lesson-analysis-v2"
+PROMPT_VERSION = "lesson-analysis-v3"
 
 LESSON_ANALYSIS_PROMPT_TEMPLATE = """Analyze this English lesson transcript.
 Return strictly valid JSON and nothing else.
+
+Profile context:
+{profile_context}
+
+Addressing rules:
+{addressing_rules}
+
 The JSON must match this structure:
 {{
   "summary": "short teacher-facing summary",

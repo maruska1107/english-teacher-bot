@@ -68,7 +68,11 @@ class AnalysisService:
             self._mark_failed(lesson, "Lesson transcript is empty")
             raise ValueError("Lesson transcript is empty")
 
-        prompt = LESSON_ANALYSIS_PROMPT_TEMPLATE.format(transcript=lesson.transcript)
+        prompt = LESSON_ANALYSIS_PROMPT_TEMPLATE.format(
+            profile_context=self._profile_context(lesson),
+            addressing_rules=self._addressing_rules(lesson),
+            transcript=lesson.transcript,
+        )
         last_error: Exception | None = None
         for _attempt in range(2):
             raw_response = await self.llm_client.complete_json(prompt)
@@ -141,6 +145,33 @@ class AnalysisService:
         else:
             async with OpenverseImageClient(self.settings) as client:
                 await lookup_and_persist(client)
+
+    def _profile_context(self, lesson: Lesson) -> str:
+        profile = lesson.learning_profile
+        if profile is None:
+            return "Profile type: unknown\nProfile name: unknown"
+        member_names = [membership.student.name for membership in profile.memberships]
+        lines = [f"Profile type: {profile.profile_type}", f"Profile name: {profile.name}"]
+        if profile.profile_type == "group":
+            members = ", ".join(member_names) if member_names else "not listed"
+            lines.append(f"Group members: {members}")
+        elif member_names:
+            lines.append(f"Student name: {member_names[0]}")
+        return "\n".join(lines)
+
+    def _addressing_rules(self, lesson: Lesson) -> str:
+        profile = lesson.learning_profile
+        if profile is not None and profile.profile_type == "group":
+            return (
+                "This is a group lesson. In student_message and homework wording, use plural/collective Russian "
+                "address: вы, вам, ваш, ребята, группа. Do not use singular Russian "
+                "ты/тебе/твой/твоя/твоё/твои. Do not create per-student feedback unless the transcript "
+                "explicitly requires it; summarize the lesson for the whole group."
+            )
+        return (
+            "This is an individual lesson. In student_message and homework wording, you may use singular Russian "
+            "ты/тебе/твой when it sounds natural."
+        )
 
     def _mark_failed(self, lesson: Lesson, message: str) -> None:
         lesson.processing_status = "failed"

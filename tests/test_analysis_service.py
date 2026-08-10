@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.analysis.service import AnalysisService
 from app.core.config import Settings
 from app.db.base import Base
-from app.models import LearningProfile, Lesson, LessonAnalysis, User, VocabularyCard
+from app.models import LearningProfile, LearningProfileMember, Lesson, LessonAnalysis, Student, User, VocabularyCard
 from app.schemas.cards import CardImageCandidate
 
 
@@ -85,7 +85,7 @@ async def test_analysis_service_retries_once_after_invalid_json_and_saves_analys
     assert "Past Simple" in analysis.teacher_report
     assert "Сегодня мы потренировали" in analysis.student_message
     assert analysis.model == "gpt-test-model"
-    assert analysis.prompt_version == "lesson-analysis-v2"
+    assert analysis.prompt_version == "lesson-analysis-v3"
     assert session.get(Lesson, lesson.id).processing_status == "analyzed"
     assert session.query(LessonAnalysis).filter_by(lesson_id=lesson.id).count() == 1
 
@@ -129,6 +129,84 @@ async def test_analysis_service_creates_draft_vocabulary_cards_for_profile_lesso
     assert cards[0].translation_ru == "путешествие"
     assert cards[0].status == "draft"
     assert analysis.analysis_json["vocabulary_cards"][0]["term"] == "journey"
+
+
+async def test_analysis_prompt_addresses_group_collectively_without_singular_you():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    profile = LearningProfile(
+        teacher_user_id=teacher.id,
+        name="Speaking B1",
+        profile_type="group",
+        card_publish_mode="manual_review",
+    )
+    anna = Student(teacher_user_id=teacher.id, name="Анна", telegram_user_id=3001, invite_status="used")
+    maria = Student(teacher_user_id=teacher.id, name="Мария", telegram_user_id=3002, invite_status="used")
+    session.add_all([profile, anna, maria])
+    session.flush()
+    session.add_all([
+        LearningProfileMember(learning_profile_id=profile.id, student_id=anna.id),
+        LearningProfileMember(learning_profile_id=profile.id, student_id=maria.id),
+    ])
+    lesson = Lesson(
+        teacher_user_id=teacher.id,
+        learning_profile_id=profile.id,
+        meeting_id="group-analysis",
+        meeting_uuid="uuid-group-analysis",
+        transcript="Teacher: What did you do yesterday? Students: We went to a museum.",
+        processing_status="transcript_ready",
+    )
+    session.add(lesson)
+    session.commit()
+    llm = FakeLLMClient([valid_analysis_json()])
+
+    await AnalysisService(session=session, settings=make_settings(), llm_client=llm).analyze_lesson(lesson.id)
+
+    prompt = llm.prompts[0]
+    assert "Profile type: group" in prompt
+    assert "Profile name: Speaking B1" in prompt
+    assert "Group members: Анна, Мария" in prompt
+    assert "use plural/collective Russian address" in prompt
+    assert "Do not use singular Russian ты/тебе/твой/твоя/твоё/твои" in prompt
+    assert "Do not create per-student feedback" in prompt
+
+
+async def test_analysis_prompt_allows_personal_address_for_individual_profile():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    profile = LearningProfile(
+        teacher_user_id=teacher.id,
+        name="Аня",
+        profile_type="individual",
+        card_publish_mode="manual_review",
+    )
+    student = Student(teacher_user_id=teacher.id, name="Аня", telegram_user_id=3001, invite_status="used")
+    session.add_all([profile, student])
+    session.flush()
+    session.add(LearningProfileMember(learning_profile_id=profile.id, student_id=student.id))
+    lesson = Lesson(
+        teacher_user_id=teacher.id,
+        learning_profile_id=profile.id,
+        meeting_id="individual-analysis",
+        meeting_uuid="uuid-individual-analysis",
+        transcript="Teacher: What did you do yesterday? Student: I went to a museum.",
+        processing_status="transcript_ready",
+    )
+    session.add(lesson)
+    session.commit()
+    llm = FakeLLMClient([valid_analysis_json()])
+
+    await AnalysisService(session=session, settings=make_settings(), llm_client=llm).analyze_lesson(lesson.id)
+
+    prompt = llm.prompts[0]
+    assert "Profile type: individual" in prompt
+    assert "Profile name: Аня" in prompt
+    assert "Student name: Аня" in prompt
+    assert "you may use singular Russian ты/тебе/твой" in prompt
 
 
 async def test_analysis_service_marks_lesson_failed_after_invalid_retry():
