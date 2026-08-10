@@ -1,14 +1,14 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.teacher_cards import get_current_teacher
+from app.api.teacher_cards import get_current_teacher, get_teacher_profile_or_404
 from app.db.session import get_db_session
 from app.models import LearningProfileMember, Lesson, LessonAnalysis, Student, StudentHomework, User, VocabularyCard
 from app.repositories.student_homework import StudentHomeworkRepository
-from app.schemas.student_cards import StudentHomeworkRead
+from app.schemas.student_cards import StudentHomeworkListResponse, StudentHomeworkRead
 from app.schemas.teacher_lesson_reviews import (
     TeacherLessonReviewConfirmResponse,
     TeacherLessonReviewListResponse,
@@ -16,6 +16,7 @@ from app.schemas.teacher_lesson_reviews import (
 )
 
 router = APIRouter(prefix="/api/teacher/lesson-reviews", tags=["teacher-lesson-reviews"])
+homework_router = APIRouter(prefix="/api/teacher/homework", tags=["teacher-homework"])
 
 
 def _analysis_data(analysis: LessonAnalysis) -> dict[str, Any]:
@@ -75,6 +76,16 @@ def _student_for_lesson(session: Session, lesson: Lesson) -> Student | None:
         select(Student)
         .join(LearningProfileMember, LearningProfileMember.student_id == Student.id)
         .where(LearningProfileMember.learning_profile_id == lesson.learning_profile_id)
+        .order_by(Student.id)
+        .limit(1)
+    )
+
+
+def _student_for_profile(session: Session, profile_id: int) -> Student | None:
+    return session.scalar(
+        select(Student)
+        .join(LearningProfileMember, LearningProfileMember.student_id == Student.id)
+        .where(LearningProfileMember.learning_profile_id == profile_id)
         .order_by(Student.id)
         .limit(1)
     )
@@ -162,3 +173,17 @@ def confirm_lesson_review(
     )
     session.commit()
     return TeacherLessonReviewConfirmResponse(**_homework_to_response(homework).model_dump())
+
+
+@homework_router.get("", response_model=StudentHomeworkListResponse)
+def list_teacher_homework(
+    session: Annotated[Session, Depends(get_db_session)],
+    teacher: Annotated[User, Depends(get_current_teacher)],
+    profile_id: Annotated[int, Query()],
+) -> StudentHomeworkListResponse:
+    profile = get_teacher_profile_or_404(session, teacher, profile_id)
+    student = _student_for_profile(session, profile.id)
+    if student is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+    items = StudentHomeworkRepository(session).current_and_previous(student.id)
+    return StudentHomeworkListResponse(items=[_homework_to_response(item) for item in items])

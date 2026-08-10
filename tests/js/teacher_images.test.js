@@ -228,3 +228,18 @@ test('teacher webapp exposes lesson review section and confirmation API', () => 
   assert.ok(pythonSource.includes('/confirm'));
   assert.ok(pythonSource.includes('Подтвердить и отправить'));
 });
+
+test('teacher student detail keeps top nav stable and uses inner student tabs', () => {
+  assert.ok(pythonSource.includes('data-student-tab="cards"'));
+  assert.ok(pythonSource.includes('data-student-tab="homework"'));
+  assert.ok(pythonSource.includes('data-student-tab="lessons"'));
+  assert.ok(pythonSource.includes('/api/teacher/homework?profile_id='));
+  assert.ok(pythonSource.includes('Новые карточки:'));
+  assert.equal(browserSource.includes('Новых карточек:'), false);
+  const renderSelectedProfile = extractFunction('renderSelectedProfile');
+  assert.equal(renderSelectedProfile.includes('id="top-tabs"'), false);
+  assert.equal(renderSelectedProfile.includes('👥 Ученики'), false);
+  assert.ok(renderSelectedProfile.includes('Карточки'));
+  assert.ok(renderSelectedProfile.includes('Домашка'));
+  assert.ok(renderSelectedProfile.includes('Уроки'));
+});

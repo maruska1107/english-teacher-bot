@@ -99,7 +99,11 @@ def test_teacher_cards_webapp_page_is_available():
     assert "+ Добавить слово" in response.text
     assert "Опубликовать все карточки" in response.text
     assert "Удалить" in response.text
-    assert "+N новых слов" in response.text
+    assert "Новые карточки:" in response.text
+    assert 'data-student-tab="cards"' in response.text
+    assert 'data-student-tab="homework"' in response.text
+    assert 'data-student-tab="lessons"' in response.text
+    assert "/api/teacher/homework?profile_id=" in response.text
     assert "Профилей пока нет" in response.text
     assert 'data-action="show-add-form"' in response.text
     assert 'type="button"' in response.text

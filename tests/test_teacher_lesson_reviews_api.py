@@ -197,3 +197,53 @@ def test_teacher_confirm_rejects_repeated_or_foreign_lesson():
     assert foreign.status_code == 404
     assert first.status_code == 200
     assert repeated.status_code == 409
+
+
+def test_teacher_can_view_current_and_previous_homework_for_own_profile():
+    session = make_session()
+    _, student, profile, lesson = seed_review_lesson(session)
+    client = make_client(session)
+    session.add(
+        StudentHomework(
+            student_id=student.id,
+            learning_profile_id=profile.id,
+            lesson_id=lesson.id,
+            slot="current",
+            lesson_date_label="После урока",
+            summary_text="Текущее ДЗ",
+            wins_text="Сильная речь",
+            focus_text="Past Simple",
+            homework_items=["Exercise 4"],
+            new_cards_count=2,
+        )
+    )
+    session.add(
+        StudentHomework(
+            student_id=student.id,
+            learning_profile_id=profile.id,
+            lesson_id=None,
+            slot="previous",
+            lesson_date_label="Предыдущий урок",
+            summary_text="Предыдущее ДЗ",
+            wins_text="",
+            focus_text="",
+            homework_items=["Read page 12"],
+            new_cards_count=1,
+        )
+    )
+    session.commit()
+
+    response = client.get(
+        f"/api/teacher/homework?profile_id={profile.id}",
+        headers={"x-telegram-init-data": signed_init_data(1001)},
+    )
+    foreign = client.get(
+        f"/api/teacher/homework?profile_id={profile.id}",
+        headers={"x-telegram-init-data": signed_init_data(2002)},
+    )
+
+    assert response.status_code == 200
+    assert [item["slot"] for item in response.json()["items"]] == ["current", "previous"]
+    assert response.json()["items"][0]["summary_text"] == "Текущее ДЗ"
+    assert response.json()["items"][1]["homework_items"] == ["Read page 12"]
+    assert foreign.status_code == 404

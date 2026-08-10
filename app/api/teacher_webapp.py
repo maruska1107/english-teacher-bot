@@ -135,9 +135,11 @@ let profiles = [];
 let lessonReviews = [];
 let activeMainSection = "profiles";
 let selectedProfile = null;
+let selectedStudentTab = "cards";
 let currentTab = "draft";
 let draftCards = [];
 let publishedCards = [];
+let selectedHomeworkItems = [];
 let addFormOpen = false;
 const imageOptionsState = new Map();
 let imageOptionsRequestGeneration = 0;
@@ -320,6 +322,8 @@ async function openProfile(profileId) {
   selectedProfile = profiles.find((profile) => profile.id === Number(profileId));
   if (!selectedProfile) return;
   currentTab = "draft";
+  selectedStudentTab = "cards";
+  selectedHomeworkItems = [];
   profilesEl.classList.add("hidden");
   detailEl.classList.remove("hidden");
   await loadProfileCards();
@@ -337,7 +341,22 @@ async function loadProfileCards() {
   publishedCards = publishedData.cards || [];
   cancelAllImageOptionsRequests();
   renderSelectedProfile();
-  setStatus(`Новых карточек: ${draftCards.length}`);
+  setStatus(`Открыт: ${selectedProfile.name}`);
+}
+
+async function loadSelectedHomework() {
+  if (!selectedProfile) return;
+  setStatus(`Загружаю домашку: ${selectedProfile.name}`);
+  try {
+    const data = await api(`/api/teacher/homework?profile_id=${selectedProfile.id}`);
+    selectedHomeworkItems = data.items || [];
+    renderSelectedProfile();
+    setStatus(`Домашка: ${selectedProfile.name}`);
+  } catch (error) {
+    selectedHomeworkItems = [];
+    renderSelectedProfile();
+    setStatus(`Ошибка: ${error.message}`);
+  }
 }
 
 function imageAttributionTemplate(card) {
@@ -488,7 +507,44 @@ function updateCreateCardButton() {
   button.disabled = !term || !translation;
 }
 
-function renderSelectedProfile() {
+function studentTabClass(tab) {
+  return selectedStudentTab === tab ? "tab-active" : "secondary";
+}
+
+function homeworkBlockTemplate(item) {
+  const title = item.slot === "current" ? "Текущее ДЗ" : "Предыдущее ДЗ";
+  const homework = (item.homework_items || []).length
+    ? `<ul>${item.homework_items.map((homeworkItem) => `<li>${escapeHtml(homeworkItem)}</li>`).join("")}</ul>`
+    : '<p class="readonly-line">Домашка не указана.</p>';
+  return `
+    <article class="card">
+      <h3>${title}</h3>
+      <p class="readonly-line">${escapeHtml(item.lesson_date_label)}</p>
+      ${item.summary_text ? `<p>${escapeHtml(item.summary_text)}</p>` : ""}
+      ${item.wins_text ? `<p><strong>Что получилось:</strong><br>${escapeHtml(item.wins_text)}</p>` : ""}
+      ${item.focus_text ? `<p><strong>Фокус:</strong><br>${escapeHtml(item.focus_text)}</p>` : ""}
+      <h3>📝 Домашка</h3>
+      ${homework}
+      <span class="badge badge-new">${Number(item.new_cards_count || 0)} новых слов</span>
+    </article>`;
+}
+
+function renderHomeworkTab() {
+  const homeworkHtml = selectedHomeworkItems.length
+    ? selectedHomeworkItems.map(homeworkBlockTemplate).join("")
+    : '<div class="empty">У этого ученика пока нет отправленной домашки.</div>';
+  return `<section class="panel"><h2>Домашка</h2>${homeworkHtml}</section>`;
+}
+
+function renderLessonsTab() {
+  return `
+    <section class="panel">
+      <h2>Уроки</h2>
+      <p class="lead">Скоро здесь будет история уроков ученика. Сейчас последние итоги смотрите во вкладке Домашка.</p>
+    </section>`;
+}
+
+function renderCardsTab() {
   const isNewTab = currentTab === "draft";
   const cards = isNewTab ? draftCards : publishedCards;
   const emptyText = isNewTab ? "Новых карточек пока нет." : "Опубликованных карточек пока нет.";
@@ -505,11 +561,10 @@ function renderSelectedProfile() {
   const draftTabClass = isNewTab ? "tab-active" : "secondary";
   const publishedTabClass = !isNewTab ? "tab-active" : "secondary";
 
-  detailEl.innerHTML = `
-    <button type="button" class="ghost" data-action="back-to-profiles">← Назад к ученикам и группам</button>
+  return `
     <section class="panel">
-      <h2>${escapeHtml(selectedProfile.name)}</h2>
-      <p class="lead">+N новых слов — количество карточек, которые ждут проверки.</p>
+      <h2>Карточки</h2>
+      <p class="lead">Новые карточки: ${draftCards.length}</p>
       <div class="profile-meta">
         <span class="badge badge-new">+${draftCards.length} новых слов</span>
         <span class="badge badge-muted">${publishedCards.length} опубликовано</span>
@@ -522,6 +577,25 @@ function renderSelectedProfile() {
       ${addWordHtml}
       <div class="actions">${publishButton}</div>
     </section>`;
+}
+
+function renderSelectedProfile() {
+  const content = selectedStudentTab === "homework"
+    ? renderHomeworkTab()
+    : selectedStudentTab === "lessons"
+      ? renderLessonsTab()
+      : renderCardsTab();
+  detailEl.innerHTML = `
+    <button type="button" class="ghost" data-action="back-to-profiles">← Назад к ученикам и группам</button>
+    <section class="panel">
+      <h2>${escapeHtml(selectedProfile.name)}</h2>
+      <div class="tabs" aria-label="Разделы ученика">
+        <button type="button" class="${studentTabClass("cards")}" data-student-tab="cards">Карточки</button>
+        <button type="button" class="${studentTabClass("homework")}" data-student-tab="homework">Домашка</button>
+        <button type="button" class="${studentTabClass("lessons")}" data-student-tab="lessons">Уроки</button>
+      </div>
+    </section>
+    ${content}`;
 }
 
 async function saveAllDraftCardEdits() {
@@ -805,6 +879,17 @@ detailEl.addEventListener("error", (event) => {
 
 detailEl.addEventListener("click", async (event) => {
   event.preventDefault();
+  const studentTabButtonEl = event.target.closest("button[data-student-tab]");
+  if (studentTabButtonEl) {
+    selectedStudentTab = studentTabButtonEl.dataset.studentTab;
+    addFormOpen = false;
+    if (selectedStudentTab === "homework") {
+      await loadSelectedHomework();
+    } else {
+      renderSelectedProfile();
+    }
+    return;
+  }
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   try {
