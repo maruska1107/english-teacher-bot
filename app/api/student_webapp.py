@@ -18,7 +18,6 @@ def _asset_data_uri(filename: str) -> str:
 
 
 MASCOT_AVATAR_SRC = _asset_data_uri("tutorhelper-cat-avatar.png")
-MASCOT_LOUNGE_SRC = _asset_data_uri("tutorhelper-cat-lounge.png")
 
 STYLE = """
 :root {
@@ -371,52 +370,6 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   transform: none;
 }
 .study-actions button:disabled:active { transform: none; }
-.cat-note {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 8px 0 0;
-  min-height: 72px;
-  padding: 8px 14px 8px 8px;
-  border: 1px solid var(--border);
-  border-radius: 22px;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(42,31,83,0.06);
-}
-.cat-mascot {
-  flex: 0 0 auto;
-  width: 62px;
-  height: 52px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  filter: none;
-}
-.cat-mascot-img { width: 100%; height: 100%; display: block; object-fit: contain; }
-.cat-bubble {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-.cat-bubble strong {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--text);
-  font-size: 13px;
-  line-height: 1.2;
-  font-weight: 900;
-}
-.cat-bubble span {
-  display: block;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.2;
-  font-weight: 650;
-}
 .card-list { margin-top: 18px; }
 .list-card, .homework-card, .summary-card, .section-card {
   margin: 10px 0;
@@ -704,10 +657,7 @@ function renderStudyCard() {
       <p class="flip-hint">Нажми, чтобы перевернуть</p>
     </article>
     <div class="actions study-actions">${actions}</div>
-    <aside class="cat-note" aria-label="Сообщение котика">
-      <div class="cat-mascot" aria-hidden="true"><img class="cat-mascot-img" src="${MASCOT_LOUNGE_SRC}" alt=""></div>
-      <div class="cat-bubble"><strong>The cat is waiting for your next move</strong><span>Котик ждёт твой следующий ход</span></div>
-    </aside>`;
+    `;
   setStatus("");
 }
 
@@ -1020,7 +970,6 @@ def _page() -> str:
   </nav>
   <script>
     const MASCOT_AVATAR_SRC = "{MASCOT_AVATAR_SRC}";
-    const MASCOT_LOUNGE_SRC = "{MASCOT_LOUNGE_SRC}";
   </script>
   <script>{CARD_UI_SCRIPT}</script>
   <script>{SCRIPT}</script>

@@ -209,8 +209,8 @@ test('student webapp uses cat-inspired TutorHelper visual shell without adding n
   assert.ok(studentWebappSource.includes('Мои занятия'));
   assert.ok(studentWebappSource.includes('Карточка ${currentIndex + 1} из ${studyCards.length}'));
   assert.ok(studentWebappSource.includes('Новых слов: +${newCount}'));
-  assert.ok(studentWebappSource.includes('The cat is waiting for your next move'));
-  assert.ok(studentWebappSource.includes('Котик ждёт твой следующий ход'));
+  assert.equal(studentWebappSource.includes('The cat is waiting for your next move'), false);
+  assert.equal(studentWebappSource.includes('Котик ждёт твой следующий ход'), false);
   assert.equal(studentWebappSource.includes('data-study-progress="forgot"'), false);
   assert.equal(studentWebappSource.includes('XP'), false);
   assert.equal(studentWebappSource.includes('streak'), false);
@@ -218,11 +218,11 @@ test('student webapp uses cat-inspired TutorHelper visual shell without adding n
 
 test('student webapp uses unified mascot assets and outline icons without fake audio controls', () => {
   assert.ok(studentWebappSource.includes('MASCOT_AVATAR_SRC'));
-  assert.ok(studentWebappSource.includes('MASCOT_LOUNGE_SRC'));
+  assert.equal(studentWebappSource.includes('MASCOT_LOUNGE_SRC'), false);
   assert.ok(studentWebappSource.includes('tutorhelper-cat-avatar.png'));
-  assert.ok(studentWebappSource.includes('tutorhelper-cat-lounge.png'));
+  assert.equal(studentWebappSource.includes('tutorhelper-cat-lounge.png'), false);
   assert.ok(studentWebappSource.includes('class="cat-avatar-img"'));
-  assert.ok(studentWebappSource.includes('class="cat-mascot-img"'));
+  assert.equal(studentWebappSource.includes('class="cat-mascot-img"'), false);
   assert.ok(studentWebappSource.includes('function iconSvg(name)'));
   assert.ok(studentWebappSource.includes('cards:'));
   assert.ok(studentWebappSource.includes('iconSvg("homework")'));
