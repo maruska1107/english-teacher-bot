@@ -47,9 +47,11 @@ STYLE = """
   --shadow: 0 18px 44px rgba(42, 31, 83, 0.10);
 }
 * { box-sizing: border-box; }
+html { scrollbar-gutter: stable; }
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-y: scroll;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   background:
     radial-gradient(circle at 18% 8%, rgba(237, 229, 255, 0.75), transparent 32%),
@@ -105,12 +107,13 @@ body {
   font-weight: 950;
 }
 .status {
-  min-height: 20px;
-  margin: 8px 0 2px;
+  min-height: 0;
+  margin: 0;
   color: var(--muted);
   font-size: 14px;
   font-weight: 750;
 }
+.status:empty { display: none; }
 .toolbar {
   display: none;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -140,12 +143,12 @@ button {
 }
 button:active { transform: translateY(1px) scale(0.99); }
 button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-offset: 2px; }
-.study-area, .card-list { margin-top: 8px; }
+.study-area, .card-list { margin-top: 0; }
 .card-mode-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0;
-  margin: 14px 0 18px;
+  margin: 4px 0 12px;
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -164,6 +167,27 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   box-shadow: 0 8px 16px rgba(118, 100, 183, 0.22);
 }
 .card-mode-tab { background: transparent; color: #6c6678; }
+.section-pill {
+  display: grid;
+  grid-template-columns: 1fr;
+  margin: 4px 0 12px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.section-pill span {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #806cc1, var(--primary));
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 850;
+  box-shadow: 0 8px 16px rgba(118, 100, 183, 0.22);
+}
 .filter-switch {
   grid-template-columns: repeat(2, max-content);
   justify-content: flex-start;
@@ -576,18 +600,19 @@ function renderStats() {
   const knownPercent = total ? Math.round((known / total) * 100) : 0;
 
   statsEl.innerHTML = `
+    <div class="section-pill"><span>Прогресс</span></div>
     <section class="summary-grid" aria-label="Прогресс ученика">
       <article class="summary-card">
-        <h2>${iconSvg("stats")} Котостатистика ⓘ</h2>
-        <p class="summary-line">${iconSvg("paw")} знаю <span class="summary-value">${known}</span></p>
-        <p class="summary-line">${iconSvg("words")} повторить <span class="summary-value">${learning}</span></p>
-        <p class="summary-line">${iconSvg("cards")} новые <span class="summary-value">${newCount}</span></p>
+        <h2>Котостатистика</h2>
+        <p class="summary-line">Знаю <span class="summary-value">${known}</span></p>
+        <p class="summary-line">Повторить <span class="summary-value">${learning}</span></p>
+        <p class="summary-line">Новые <span class="summary-value">${newCount}</span></p>
         <p class="summary-line">Всего слов: <span class="summary-value">${total}</span></p>
         <p class="summary-line">Осталось учить: <span class="summary-value">${leftToStudy}</span></p>
         <p class="summary-line">Выучено: <span class="summary-value">${knownPercent}%</span></p>
       </article>
     </section>`;
-  setStatus("Прогресс");
+  setStatus("");
 }
 
 function studyProgressPercent() {
@@ -747,18 +772,18 @@ function renderHomework() {
   setActiveSection("homework");
   homeworkEl.classList.remove("hidden");
   if (!homeworkLoaded) {
-    homeworkEl.innerHTML = '<div class="status">Загружаю домашку...</div>';
+    homeworkEl.innerHTML = '<div class="section-pill"><span>Домашка</span></div><div class="status">Загружаю домашку...</div>';
     setStatus("Загружаю домашку...");
     loadHomework();
     return;
   }
   if (!homeworkItems.length) {
-    homeworkEl.innerHTML = '<div class="empty">Пока домашки нет. После урока преподаватель отправит её сюда.</div>';
-    setStatus("Домашка");
+    homeworkEl.innerHTML = '<div class="section-pill"><span>Домашка</span></div><div class="empty">Пока домашки нет. После урока преподаватель отправит её сюда.</div>';
+    setStatus("");
     return;
   }
-  homeworkEl.innerHTML = homeworkItems.map((item) => homeworkCardTemplate(item)).join("");
-  setStatus("Домашка");
+  homeworkEl.innerHTML = `<div class="section-pill"><span>Домашка</span></div>${homeworkItems.map((item) => homeworkCardTemplate(item)).join("")}`;
+  setStatus("");
 }
 
 async function loadHomework() {

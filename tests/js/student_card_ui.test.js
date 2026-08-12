@@ -224,9 +224,9 @@ test('student webapp uses unified mascot assets and outline icons without fake a
   assert.ok(studentWebappSource.includes('class="cat-avatar-img"'));
   assert.ok(studentWebappSource.includes('class="cat-mascot-img"'));
   assert.ok(studentWebappSource.includes('function iconSvg(name)'));
-  assert.ok(studentWebappSource.includes('iconSvg("cards")'));
+  assert.ok(studentWebappSource.includes('cards:'));
   assert.ok(studentWebappSource.includes('iconSvg("homework")'));
-  assert.ok(studentWebappSource.includes('iconSvg("stats")'));
+  assert.ok(studentWebappSource.includes('stats:'));
   assert.ok(studentWebappSource.includes('iconSvg("learn")'));
   assert.ok(studentWebappSource.includes('iconSvg("list")'));
   assert.ok(studentWebappSource.includes('iconSvg("words")'));
