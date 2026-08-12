@@ -627,8 +627,8 @@ function renderStudyCard() {
   const actions = isFlipped
     ? `<button class="learning" data-study-progress="learning">${iconSvg("paw")} Ещё учу<small>Нужно повторить</small></button>
        <button class="known" data-study-progress="known">${iconSvg("paw")} Знаю<small>Отлично!</small></button>`
-    : `<button class="learning" type="button" disabled>${iconSvg("paw")} Ещё учу<small>Сначала переверни</small></button>
-       <button class="known" type="button" disabled>${iconSvg("paw")} Знаю<small>Сначала переверни</small></button>`;
+    : `<button class="learning" type="button" disabled>${iconSvg("paw")} Ещё учу</button>
+       <button class="known" type="button" disabled>${iconSvg("paw")} Знаю</button>`;
 
   const newCount = countByStatus("new");
   const newBadge = newCount ? `<span class="badge">${iconSvg("spark")} Новых слов: +${newCount}</span>` : "";
