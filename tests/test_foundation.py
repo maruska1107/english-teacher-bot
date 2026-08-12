@@ -193,9 +193,9 @@ def test_student_cards_webapp_page_is_available():
     assert "TutorHelper" in response.text
     assert "cat-avatar" in response.text
     assert "bottom-nav" in response.text
-    assert "min-height: 430px" in response.text
+    assert "min-height: 390px" in response.text
     assert ".flashcard-with-image" in response.text
-    assert "min-height: 522px" in response.text
+    assert "min-height: 468px" in response.text
     assert ".flashcard-image" in response.text
     assert "width: 100%" in response.text
     assert "height: 210px" in response.text

@@ -61,7 +61,7 @@ body {
   max-width: 430px;
   min-height: 100vh;
   margin: 0 auto;
-  padding: 26px 18px 104px;
+  padding: 28px 18px 92px;
   position: relative;
 }
 .app-header {
@@ -69,16 +69,9 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin: 2px 0 28px;
+  margin: 2px 0 18px;
 }
-.brand {
-  margin: 0;
-  color: var(--text);
-  font-size: 32px;
-  line-height: 1;
-  letter-spacing: -1.4px;
-  font-weight: 950;
-}
+.brand { display: none; }
 .cat-avatar {
   width: 44px;
   height: 44px;
@@ -105,10 +98,10 @@ body {
 .button-icon { display: block; margin: 0 auto 5px; }
 .inline-icon { width: 18px; height: 18px; vertical-align: -3px; }
 .section-title {
-  margin: 0 0 16px;
-  font-size: 28px;
+  margin: 0;
+  font-size: 30px;
   line-height: 1.05;
-  letter-spacing: -0.8px;
+  letter-spacing: -0.9px;
   font-weight: 950;
 }
 .status {
@@ -119,7 +112,7 @@ body {
   font-weight: 750;
 }
 .toolbar {
-  display: grid;
+  display: none;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 14px;
@@ -222,13 +215,13 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   white-space: nowrap;
 }
 .flashcard {
-  min-height: 430px;
+  min-height: 390px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 14px;
+  gap: 10px;
   margin: 0;
-  padding: 26px 20px 18px;
+  padding: 22px 20px 16px;
   border: 2px solid #e2d7fb;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.96);
@@ -237,7 +230,7 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   cursor: pointer;
   user-select: none;
 }
-.flashcard-with-image { min-height: 522px; }
+.flashcard-with-image { min-height: 468px; }
 .flashcard:focus-visible { outline: 4px solid rgba(118, 100, 183, 0.30); outline-offset: 4px; }
 .flashcard-head {
   display: grid;
@@ -319,8 +312,8 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin-top: auto;
+  gap: 8px;
+  margin-top: 2px;
   color: var(--text);
   font-size: 20px;
   line-height: 1.28;
@@ -331,15 +324,15 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
 .study-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  min-height: 82px;
+  min-height: 62px;
   align-items: stretch;
 }
 .study-actions button {
-  min-height: 72px;
+  min-height: 58px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
+  gap: 2px;
   border-radius: 16px;
   line-height: 1.12;
 }
@@ -347,29 +340,31 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
 .learning { background: var(--learning-bg); color: var(--learning-text); border-color: var(--learning-border); }
 .known { background: var(--known-bg); color: var(--known-text); border-color: var(--known-border); }
 .cat-note {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  align-items: end;
-  gap: 10px;
-  margin: 12px 0 2px;
+  position: relative;
+  margin: 8px 0 0;
+  min-height: 72px;
 }
 .cat-mascot {
-  width: 98px;
-  height: 66px;
-  align-self: end;
+  position: absolute;
+  left: 8px;
+  bottom: 0;
+  z-index: 2;
+  width: 92px;
+  height: 62px;
   filter: drop-shadow(0 9px 12px rgba(118, 100, 183, 0.18));
 }
 .cat-mascot-img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .cat-bubble {
-  align-self: center;
-  padding: 14px 16px;
+  min-height: 60px;
+  margin-left: 70px;
+  padding: 12px 16px 12px 26px;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 20px;
   background: #ffffff;
   box-shadow: 0 10px 28px rgba(42,31,83,0.06);
 }
-.cat-bubble strong { display: block; margin-bottom: 4px; font-size: 15px; }
-.cat-bubble span { color: var(--muted); font-size: 13px; font-weight: 650; }
+.cat-bubble strong { display: block; margin-bottom: 4px; font-size: 14px; }
+.cat-bubble span { color: var(--muted); font-size: 12px; font-weight: 650; }
 .card-list { margin-top: 18px; }
 .list-card, .homework-card, .summary-card, .section-card {
   margin: 10px 0;
@@ -528,7 +523,10 @@ function hideSections() {
 
 function sectionClasses(button, isActive) {
   if (button.closest(".bottom-nav")) {
-    return isActive ? "tab-active" : "secondary-button";
+    const navMode = button.dataset.cardMode;
+    const cardNavActive = currentSection === "cards" && navMode && currentCardMode === navMode;
+    const sectionNavActive = currentSection !== "cards" && isActive;
+    return (cardNavActive || sectionNavActive) ? "tab-active" : "secondary-button";
   }
   return isActive ? "tab-active" : "secondary-button";
 }
@@ -654,7 +652,7 @@ function renderStudyCard() {
     <div class="actions study-actions">${actions}</div>
     <aside class="cat-note" aria-label="Сообщение котика">
       <div class="cat-mascot" aria-hidden="true"><img class="cat-mascot-img" src="${MASCOT_LOUNGE_SRC}" alt=""></div>
-      <div class="cat-bubble"><strong>bro is bilingual now</strong><span>Котик ждёт твой следующий ход</span></div>
+      <div class="cat-bubble"><strong>The cat is waiting for your next move</strong><span>Котик ждёт твой следующий ход</span></div>
     </aside>`;
   setStatus("");
 }
@@ -899,7 +897,7 @@ navButtons.forEach((button) => {
     currentIndex = 0;
     isFlipped = false;
     currentSection = button.dataset.section;
-    if (currentSection === "cards") currentCardMode = "study";
+    if (currentSection === "cards") currentCardMode = button.dataset.cardMode || "study";
     renderCurrentSection();
   });
 });
@@ -922,11 +920,11 @@ def _page() -> str:
   <main class="page">
     <header class="app-header">
       <h1 class="brand">TutorHelper</h1>
+      <h2 class="section-title">Мои занятия</h2>
       <div class="cat-avatar" aria-hidden="true">
         <img class="cat-avatar-img" src="{MASCOT_AVATAR_SRC}" alt="">
       </div>
     </header>
-    <h2 class="section-title">Мои занятия</h2>
     <div class="toolbar" aria-label="Разделы ученика">
       <button type="button" data-section="cards" class="mode-button">
         <svg class="ui-icon button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="3"></rect><path d="M9 9h6"></path><path d="M9 13h6"></path><path d="M12 17l2-2 2 2"></path></svg>
@@ -947,13 +945,13 @@ def _page() -> str:
     <section id="stats" class="card-list hidden"></section>
   </main>
   <nav class="bottom-nav" aria-label="Нижняя навигация">
-    <button type="button" data-section="cards" class="tab-active">
+    <button type="button" data-section="cards" data-card-mode="study" class="tab-active">
       <span class="nav-icon">
         <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8 12 4l8 4-8 4z"></path><path d="M7 10.5V15c2.5 2 7.5 2 10 0v-4.5"></path><path d="M20 8v5"></path></svg>
       </span>
       Учиться
     </button>
-    <button type="button" data-section="homework" class="secondary-button">
+    <button type="button" data-section="cards" data-card-mode="list" class="secondary-button">
       <span class="nav-icon">
         <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h10a4 4 0 0 1 4 4v10H9a4 4 0 0 0-4 4z"></path><path d="M5 5v18"></path><path d="M9 9h6"></path><path d="M9 13h5"></path></svg>
       </span>

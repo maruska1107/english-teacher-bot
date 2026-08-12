@@ -209,7 +209,7 @@ test('student webapp uses cat-inspired TutorHelper visual shell without adding n
   assert.ok(studentWebappSource.includes('Мои занятия'));
   assert.ok(studentWebappSource.includes('Карточка ${currentIndex + 1} из ${studyCards.length}'));
   assert.ok(studentWebappSource.includes('Новых слов: +${newCount}'));
-  assert.ok(studentWebappSource.includes('bro is bilingual now'));
+  assert.ok(studentWebappSource.includes('The cat is waiting for your next move'));
   assert.ok(studentWebappSource.includes('Котик ждёт твой следующий ход'));
   assert.equal(studentWebappSource.includes('data-study-progress="forgot"'), false);
   assert.equal(studentWebappSource.includes('XP'), false);
