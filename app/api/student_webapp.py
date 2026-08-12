@@ -155,7 +155,13 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
 }
 .card-mode-switch button {
+  height: 42px;
   min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
   border-radius: 12px;
   border: 0;
   font-size: 15px;
@@ -177,6 +183,7 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
 }
 .section-pill span {
+  height: 42px;
   min-height: 42px;
   display: flex;
   align-items: center;
