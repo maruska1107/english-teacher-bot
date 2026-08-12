@@ -364,15 +364,19 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
 .learning { background: var(--learning-bg); color: var(--learning-text); border-color: var(--learning-border); }
 .known { background: var(--known-bg); color: var(--known-text); border-color: var(--known-border); }
 .cat-note {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 8px 0 0;
-  min-height: 70px;
+  min-height: 72px;
+  padding: 8px 14px 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(42,31,83,0.06);
 }
 .cat-mascot {
-  position: absolute;
-  left: 0;
-  bottom: 8px;
-  z-index: 2;
+  flex: 0 0 auto;
   width: 62px;
   height: 52px;
   padding: 4px;
@@ -384,17 +388,14 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
 }
 .cat-mascot-img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .cat-bubble {
-  min-height: 68px;
-  margin-left: 48px;
-  padding: 12px 14px 12px 30px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(42,31,83,0.06);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .cat-bubble strong {
   display: block;
-  max-width: 230px;
   margin-bottom: 5px;
   color: var(--text);
   font-size: 13px;
