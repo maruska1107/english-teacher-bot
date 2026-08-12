@@ -362,9 +362,10 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
 .study-actions button {
   min-height: 58px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 7px;
   border-radius: 16px;
   line-height: 1.12;
 }
@@ -632,8 +633,8 @@ function renderStudyCard() {
     ? [card.definition_en, card.example_sentence].filter(Boolean).map(escapeHtml).join("<br>")
     : (card.example_sentence ? escapeHtml(card.example_sentence) : "Нажмите, чтобы перевернуть");
   const actions = isFlipped
-    ? `<button class="learning" data-study-progress="learning">${iconSvg("paw")} Ещё учу<small>Нужно повторить</small></button>
-       <button class="known" data-study-progress="known">${iconSvg("paw")} Знаю<small>Отлично!</small></button>`
+    ? `<button class="learning" data-study-progress="learning">${iconSvg("paw")} Ещё учу</button>
+       <button class="known" data-study-progress="known">${iconSvg("paw")} Знаю</button>`
     : `<button class="learning" type="button" disabled>${iconSvg("paw")} Ещё учу</button>
        <button class="known" type="button" disabled>${iconSvg("paw")} Знаю</button>`;
 
