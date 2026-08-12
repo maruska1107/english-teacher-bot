@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+import base64
 from pathlib import Path
 
 from fastapi import APIRouter
@@ -5,7 +7,18 @@ from fastapi.responses import HTMLResponse
 
 router = APIRouter()
 
-CARD_UI_SCRIPT = (Path(__file__).resolve().parents[1] / "static" / "student_card_ui.js").read_text(encoding="utf-8")
+STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
+CARD_UI_SCRIPT = (STATIC_DIR / "student_card_ui.js").read_text(encoding="utf-8")
+
+
+def _asset_data_uri(filename: str) -> str:
+    data = (STATIC_DIR / "assets" / filename).read_bytes()
+    encoded = base64.b64encode(data).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+MASCOT_AVATAR_SRC = _asset_data_uri("tutorhelper-cat-avatar.png")
+MASCOT_LOUNGE_SRC = _asset_data_uri("tutorhelper-cat-lounge.png")
 
 STYLE = """
 :root {
@@ -69,15 +82,28 @@ body {
 .cat-avatar {
   width: 44px;
   height: 44px;
-  display: grid;
-  place-items: center;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: linear-gradient(145deg, #cdbdf4, #f4d7ed);
+  overflow: hidden;
+  background: #d8c9fb;
   border: 1px solid #ded3f0;
   box-shadow: 0 8px 18px rgba(118, 100, 183, 0.18);
-  font-size: 24px;
 }
+.cat-avatar-img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.ui-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -5px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.button-icon { display: block; margin: 0 auto 5px; }
+.inline-icon { width: 18px; height: 18px; vertical-align: -3px; }
 .section-title {
   margin: 0 0 16px;
   font-size: 28px;
@@ -226,16 +252,7 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   font-size: 16px;
   font-weight: 950;
 }
-.sound-pill {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-size: 20px;
-}
+
 .flashcard-main {
   margin: 0;
   color: var(--text);
@@ -309,7 +326,6 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   line-height: 1.28;
   font-weight: 850;
 }
-.flashcard-sentence .sound-pill { flex: 0 0 auto; background: #f4effc; }
 .flip-hint { margin-top: -6px; color: #aaa3b5; font-size: 14px; font-weight: 750; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; justify-content: center; }
 .study-actions {
@@ -338,14 +354,12 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   margin: 12px 0 2px;
 }
 .cat-mascot {
-  width: 82px;
-  height: 82px;
-  display: grid;
-  place-items: center;
+  width: 98px;
+  height: 66px;
   align-self: end;
-  font-size: 54px;
   filter: drop-shadow(0 9px 12px rgba(118, 100, 183, 0.18));
 }
+.cat-mascot-img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .cat-bubble {
   align-self: center;
   padding: 14px 16px;
@@ -387,7 +401,7 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
 .homework-block p { margin: 0; color: var(--muted); line-height: 1.48; white-space: pre-wrap; }
 .homework-list { margin: 8px 0 0; padding: 0; list-style: none; }
 .homework-list li { margin: 8px 0; color: var(--text); font-weight: 720; }
-.homework-list li::before { content: "🐾"; margin-right: 8px; }
+.homework-list li::before { content: "•"; margin-right: 8px; color: var(--primary); font-weight: 950; }
 .homework-actions { justify-content: flex-start; }
 .homework-previous { background: rgba(255,255,255,0.72); }
 .empty {
@@ -432,7 +446,8 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   color: var(--primary);
   box-shadow: none;
 }
-.nav-icon { display: block; margin-bottom: 3px; font-size: 23px; line-height: 1; }
+.nav-icon { display: block; margin-bottom: 3px; line-height: 1; }
+.nav-icon .ui-icon { width: 25px; height: 25px; }
 .hidden { display: none; }
 @media (max-width: 360px) {
   .page { padding-left: 12px; padding-right: 12px; }
@@ -526,13 +541,27 @@ function setActiveSection(section) {
   });
 }
 
+function iconSvg(name) {
+  const icons = {
+    cards: '<rect x="5" y="4" width="14" height="16" rx="3"></rect><path d="M9 9h6"></path><path d="M9 13h6"></path><path d="M12 17l2-2 2 2"></path>',
+    homework: '<path d="M6 19h12"></path><path d="M7 15.5 16.5 6 20 9.5 10.5 19 6 20z"></path><path d="M14.5 8 18 11.5"></path>',
+    stats: '<path d="M5 19V12"></path><path d="M12 19V5"></path><path d="M19 19V9"></path><path d="M4 19h16"></path>',
+    learn: '<path d="M4 8 12 4l8 4-8 4z"></path><path d="M7 10.5V15c2.5 2 7.5 2 10 0v-4.5"></path><path d="M20 8v5"></path>',
+    list: '<path d="M9 6h11"></path><path d="M9 12h11"></path><path d="M9 18h11"></path><path d="M4 6h.01"></path><path d="M4 12h.01"></path><path d="M4 18h.01"></path>',
+    words: '<path d="M5 5h10a4 4 0 0 1 4 4v10H9a4 4 0 0 0-4 4z"></path><path d="M5 5v18"></path><path d="M9 9h6"></path><path d="M9 13h5"></path>',
+    paw: '<path d="M8.5 11.5c-2.5 1.3-3.8 3.8-2.4 5.6 1.2 1.5 3.2.5 5.9.5s4.7 1 5.9-.5c1.4-1.8.1-4.3-2.4-5.6-1.4-.8-2.4.8-3.5.8s-2.1-1.6-3.5-.8z"></path><path d="M6.5 8.5c.8 0 1.4-.8 1.4-1.8S7.3 5 6.5 5 5.1 5.8 5.1 6.7s.6 1.8 1.4 1.8z"></path><path d="M11 7.2c.9 0 1.6-.9 1.6-2S11.9 3 11 3s-1.6.9-1.6 2.1.7 2.1 1.6 2.1z"></path><path d="M17.5 8.5c.8 0 1.4-.8 1.4-1.8S18.3 5 17.5 5s-1.4.8-1.4 1.7.6 1.8 1.4 1.8z"></path>',
+    spark: '<path d="M12 3l1.6 5.1L19 10l-5.4 1.9L12 17l-1.6-5.1L5 10l5.4-1.9z"></path>',
+  };
+  return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">${icons[name] || ""}</svg>`;
+}
+
 function cardModeSwitch() {
   const studyClass = currentCardMode === "study" ? "card-mode-tab-active" : "card-mode-tab";
   const listClass = currentCardMode === "list" ? "card-mode-tab-active" : "card-mode-tab";
   return `
     <div class="card-mode-switch" aria-label="Режим карточек">
-      <button type="button" class="${studyClass}" data-card-mode="study">🎓 Учить</button>
-      <button type="button" class="${listClass}" data-card-mode="list">☷ Список</button>
+      <button type="button" class="${studyClass}" data-card-mode="study">${iconSvg("learn")} Учить</button>
+      <button type="button" class="${listClass}" data-card-mode="list">${iconSvg("list")} Список</button>
     </div>`;
 }
 
@@ -551,10 +580,10 @@ function renderStats() {
   statsEl.innerHTML = `
     <section class="summary-grid" aria-label="Прогресс ученика">
       <article class="summary-card">
-        <h2>Котостатистика ⓘ</h2>
-        <p class="summary-line">🐱 знаю <span class="summary-value">${known}</span></p>
-        <p class="summary-line">🙂 повторить <span class="summary-value">${learning}</span></p>
-        <p class="summary-line">🐾 новые <span class="summary-value">${newCount}</span></p>
+        <h2>${iconSvg("stats")} Котостатистика ⓘ</h2>
+        <p class="summary-line">${iconSvg("paw")} знаю <span class="summary-value">${known}</span></p>
+        <p class="summary-line">${iconSvg("words")} повторить <span class="summary-value">${learning}</span></p>
+        <p class="summary-line">${iconSvg("cards")} новые <span class="summary-value">${newCount}</span></p>
         <p class="summary-line">Всего слов: <span class="summary-value">${total}</span></p>
         <p class="summary-line">Осталось учить: <span class="summary-value">${leftToStudy}</span></p>
         <p class="summary-line">Выучено: <span class="summary-value">${knownPercent}%</span></p>
@@ -575,7 +604,7 @@ function renderStudyCard() {
   studyCards = getStudyCards();
 
   if (!studyCards.length) {
-    studyEl.innerHTML = `${cardModeSwitch()}<div class="empty">Все слова уже в категории “Знаю” 🎉</div>`;
+    studyEl.innerHTML = `${cardModeSwitch()}<div class="empty">Все слова уже в категории “Знаю”</div>`;
     setStatus("Все слова выучены");
     return;
   }
@@ -592,12 +621,12 @@ function renderStudyCard() {
     ? [card.definition_en, card.example_sentence].filter(Boolean).map(escapeHtml).join("<br>")
     : (card.example_sentence ? escapeHtml(card.example_sentence) : "Нажмите, чтобы перевернуть");
   const actions = isFlipped
-    ? `<button class="learning" data-study-progress="learning">🐱 Ещё учу<small>Нужно повторить</small></button>
-       <button class="known" data-study-progress="known">😼 Знаю<small>Отлично!</small></button>`
+    ? `<button class="learning" data-study-progress="learning">${iconSvg("paw")} Ещё учу<small>Нужно повторить</small></button>
+       <button class="known" data-study-progress="known">${iconSvg("paw")} Знаю<small>Отлично!</small></button>`
     : "";
 
   const newCount = countByStatus("new");
-  const newBadge = newCount ? `<span class="badge">✦ Новых слов: +${newCount}</span>` : "";
+  const newBadge = newCount ? `<span class="badge">${iconSvg("spark")} Новых слов: +${newCount}</span>` : "";
 
   studyEl.innerHTML = `
     ${cardModeSwitch()}
@@ -614,20 +643,18 @@ function renderStudyCard() {
              aria-pressed="${isFlipped}" aria-label="Перевернуть карточку">
       <div class="flashcard-head">
         <p class="flashcard-side">${sideLabel}</p>
-        <span class="sound-pill" aria-hidden="true">🔊</span>
       </div>
       <p class="flashcard-main">${escapeHtml(mainText)}</p>
       ${image}
       <div class="flashcard-sentence">
-        <span class="sound-pill" aria-hidden="true">🔊</span>
         <p class="flashcard-extra">${sentence || " "}</p>
       </div>
       <p class="flip-hint">Нажми, чтобы перевернуть</p>
     </article>
     <div class="actions study-actions">${actions}</div>
     <aside class="cat-note" aria-label="Сообщение котика">
-      <div class="cat-mascot" aria-hidden="true">🐱</div>
-      <div class="cat-bubble"><strong>bro is bilingual now 🐱</strong><span>Котик ждёт твой следующий ход</span></div>
+      <div class="cat-mascot" aria-hidden="true"><img class="cat-mascot-img" src="${MASCOT_LOUNGE_SRC}" alt=""></div>
+      <div class="cat-bubble"><strong>bro is bilingual now</strong><span>Котик ждёт твой следующий ход</span></div>
     </aside>`;
   setStatus("");
 }
@@ -642,8 +669,8 @@ function listFilterSwitch() {
   const knownClass = listFilter === "known" ? "filter-chip-active" : "filter-chip";
   return `
     <div class="card-mode-switch filter-switch" aria-label="Фильтр списка">
-      <button type="button" class="${learningClass}" data-list-filter="learning">🐾 Учу</button>
-      <button type="button" class="${knownClass}" data-list-filter="known">🐱 Знаю</button>
+      <button type="button" class="${learningClass}" data-list-filter="learning">${iconSvg("words")} Учу</button>
+      <button type="button" class="${knownClass}" data-list-filter="known">${iconSvg("paw")} Знаю</button>
     </div>`;
 }
 
@@ -697,13 +724,13 @@ function homeworkCardTemplate(item) {
        </div>`
     : "";
   const summaryBlock = item.summary_text
-    ? `<div class="homework-block"><h3>✨ Итоги урока</h3><p>${escapeHtml(item.summary_text)}</p></div>`
+    ? `<div class="homework-block"><h3>${iconSvg("spark")} Итоги урока</h3><p>${escapeHtml(item.summary_text)}</p></div>`
     : "";
   const winsBlock = item.wins_text
-    ? `<div class="homework-block"><h3>💪 Что получилось</h3><p>${escapeHtml(item.wins_text)}</p></div>`
+    ? `<div class="homework-block"><h3>${iconSvg("paw")} Что получилось</h3><p>${escapeHtml(item.wins_text)}</p></div>`
     : "";
   const focusBlock = item.focus_text
-    ? `<div class="homework-block"><h3>🎯 Фокус</h3><p>${escapeHtml(item.focus_text)}</p></div>`
+    ? `<div class="homework-block"><h3>${iconSvg("words")} Фокус</h3><p>${escapeHtml(item.focus_text)}</p></div>`
     : "";
   return `
     <article class="${cardClass}">
@@ -712,7 +739,7 @@ function homeworkCardTemplate(item) {
       ${summaryBlock}
       ${winsBlock}
       ${focusBlock}
-      <div class="homework-block"><h3>✏️ Домашка</h3><ul class="homework-list">${homeworkList}</ul></div>
+      <div class="homework-block"><h3>${iconSvg("homework")} Домашка</h3><ul class="homework-list">${homeworkList}</ul></div>
       ${cardsButton}
     </article>`;
 }
@@ -895,13 +922,24 @@ def _page() -> str:
   <main class="page">
     <header class="app-header">
       <h1 class="brand">TutorHelper</h1>
-      <div class="cat-avatar" aria-hidden="true">🐱</div>
+      <div class="cat-avatar" aria-hidden="true">
+        <img class="cat-avatar-img" src="{MASCOT_AVATAR_SRC}" alt="">
+      </div>
     </header>
-    <h2 class="section-title">Мои занятия 🐱</h2>
+    <h2 class="section-title">Мои занятия</h2>
     <div class="toolbar" aria-label="Разделы ученика">
-      <button type="button" data-section="cards" class="mode-button">🎴 Карточки</button>
-      <button type="button" data-section="homework" class="secondary-button">✏️ Домашка</button>
-      <button type="button" data-section="stats" class="secondary-button">▥ Статистика</button>
+      <button type="button" data-section="cards" class="mode-button">
+        <svg class="ui-icon button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="3"></rect><path d="M9 9h6"></path><path d="M9 13h6"></path><path d="M12 17l2-2 2 2"></path></svg>
+        Карточки
+      </button>
+      <button type="button" data-section="homework" class="secondary-button">
+        <svg class="ui-icon button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19h12"></path><path d="M7 15.5 16.5 6 20 9.5 10.5 19 6 20z"></path><path d="M14.5 8 18 11.5"></path></svg>
+        Домашка
+      </button>
+      <button type="button" data-section="stats" class="secondary-button">
+        <svg class="ui-icon button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V12"></path><path d="M12 19V5"></path><path d="M19 19V9"></path><path d="M4 19h16"></path></svg>
+        Статистика
+      </button>
     </div>
     <div id="status" class="status">Загрузка...</div>
     <section id="study" class="study-area"></section>
@@ -909,12 +947,29 @@ def _page() -> str:
     <section id="stats" class="card-list hidden"></section>
   </main>
   <nav class="bottom-nav" aria-label="Нижняя навигация">
-    <button type="button" data-section="cards" class="tab-active"><span class="nav-icon">🎓</span>Учиться</button>
-    <button type="button" data-section="homework" class="secondary-button">
-      <span class="nav-icon">▣</span>Мои слова
+    <button type="button" data-section="cards" class="tab-active">
+      <span class="nav-icon">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8 12 4l8 4-8 4z"></path><path d="M7 10.5V15c2.5 2 7.5 2 10 0v-4.5"></path><path d="M20 8v5"></path></svg>
+      </span>
+      Учиться
     </button>
-    <button type="button" data-section="stats" class="secondary-button"><span class="nav-icon">▥</span>Прогресс</button>
+    <button type="button" data-section="homework" class="secondary-button">
+      <span class="nav-icon">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h10a4 4 0 0 1 4 4v10H9a4 4 0 0 0-4 4z"></path><path d="M5 5v18"></path><path d="M9 9h6"></path><path d="M9 13h5"></path></svg>
+      </span>
+      Мои слова
+    </button>
+    <button type="button" data-section="stats" class="secondary-button">
+      <span class="nav-icon">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V12"></path><path d="M12 19V5"></path><path d="M19 19V9"></path><path d="M4 19h16"></path></svg>
+      </span>
+      Прогресс
+    </button>
   </nav>
+  <script>
+    const MASCOT_AVATAR_SRC = "{MASCOT_AVATAR_SRC}";
+    const MASCOT_LOUNGE_SRC = "{MASCOT_LOUNGE_SRC}";
+  </script>
   <script>{CARD_UI_SCRIPT}</script>
   <script>{SCRIPT}</script>
 </body>

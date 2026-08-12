@@ -206,12 +206,33 @@ test('student webapp uses cat-inspired TutorHelper visual shell without adding n
   assert.ok(studentWebappSource.includes('TutorHelper'));
   assert.ok(studentWebappSource.includes('class="cat-avatar"'));
   assert.ok(studentWebappSource.includes('class="bottom-nav"'));
-  assert.ok(studentWebappSource.includes('Мои занятия 🐱'));
+  assert.ok(studentWebappSource.includes('Мои занятия'));
   assert.ok(studentWebappSource.includes('Карточка ${currentIndex + 1} из ${studyCards.length}'));
   assert.ok(studentWebappSource.includes('Новых слов: +${newCount}'));
-  assert.ok(studentWebappSource.includes('bro is bilingual now 🐱'));
+  assert.ok(studentWebappSource.includes('bro is bilingual now'));
   assert.ok(studentWebappSource.includes('Котик ждёт твой следующий ход'));
   assert.equal(studentWebappSource.includes('data-study-progress="forgot"'), false);
   assert.equal(studentWebappSource.includes('XP'), false);
   assert.equal(studentWebappSource.includes('streak'), false);
+});
+
+test('student webapp uses unified mascot assets and outline icons without fake audio controls', () => {
+  assert.ok(studentWebappSource.includes('MASCOT_AVATAR_SRC'));
+  assert.ok(studentWebappSource.includes('MASCOT_LOUNGE_SRC'));
+  assert.ok(studentWebappSource.includes('tutorhelper-cat-avatar.png'));
+  assert.ok(studentWebappSource.includes('tutorhelper-cat-lounge.png'));
+  assert.ok(studentWebappSource.includes('class="cat-avatar-img"'));
+  assert.ok(studentWebappSource.includes('class="cat-mascot-img"'));
+  assert.ok(studentWebappSource.includes('function iconSvg(name)'));
+  assert.ok(studentWebappSource.includes('iconSvg("cards")'));
+  assert.ok(studentWebappSource.includes('iconSvg("homework")'));
+  assert.ok(studentWebappSource.includes('iconSvg("stats")'));
+  assert.ok(studentWebappSource.includes('iconSvg("learn")'));
+  assert.ok(studentWebappSource.includes('iconSvg("list")'));
+  assert.ok(studentWebappSource.includes('iconSvg("words")'));
+  assert.equal(studentWebappSource.includes('🔊'), false);
+  assert.equal(studentWebappSource.includes('🐱'), false);
+  assert.equal(studentWebappSource.includes('🎴'), false);
+  assert.equal(studentWebappSource.includes('✏️'), false);
+  assert.equal(studentWebappSource.includes('▥'), false);
 });
