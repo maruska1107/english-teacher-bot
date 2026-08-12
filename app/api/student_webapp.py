@@ -366,29 +366,48 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
 .cat-note {
   position: relative;
   margin: 8px 0 0;
-  min-height: 72px;
+  min-height: 70px;
 }
 .cat-mascot {
   position: absolute;
-  left: 8px;
-  bottom: 0;
+  left: 0;
+  bottom: 8px;
   z-index: 2;
-  width: 92px;
-  height: 62px;
-  filter: drop-shadow(0 9px 12px rgba(118, 100, 183, 0.18));
+  width: 62px;
+  height: 52px;
+  padding: 4px;
+  border: 1px solid #e4dcf4;
+  border-radius: 18px;
+  background: #fff7f4;
+  box-shadow: 0 8px 18px rgba(118, 100, 183, 0.12);
+  filter: none;
 }
 .cat-mascot-img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .cat-bubble {
-  min-height: 60px;
-  margin-left: 70px;
-  padding: 12px 16px 12px 26px;
+  min-height: 68px;
+  margin-left: 48px;
+  padding: 12px 14px 12px 30px;
   border: 1px solid var(--border);
   border-radius: 20px;
   background: #ffffff;
   box-shadow: 0 10px 28px rgba(42,31,83,0.06);
 }
-.cat-bubble strong { display: block; margin-bottom: 4px; font-size: 14px; }
-.cat-bubble span { color: var(--muted); font-size: 12px; font-weight: 650; }
+.cat-bubble strong {
+  display: block;
+  max-width: 230px;
+  margin-bottom: 5px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 900;
+}
+.cat-bubble span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 650;
+}
 .card-list { margin-top: 18px; }
 .list-card, .homework-card, .summary-card, .section-card {
   margin: 10px 0;
