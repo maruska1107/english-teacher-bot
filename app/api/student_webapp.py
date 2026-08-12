@@ -363,6 +363,12 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
 .study-actions small { display: block; color: rgba(80,72,95,0.70); font-size: 12px; font-weight: 750; }
 .learning { background: var(--learning-bg); color: var(--learning-text); border-color: var(--learning-border); }
 .known { background: var(--known-bg); color: var(--known-text); border-color: var(--known-border); }
+.study-actions button:disabled {
+  opacity: 0.58;
+  cursor: default;
+  transform: none;
+}
+.study-actions button:disabled:active { transform: none; }
 .cat-note {
   display: flex;
   align-items: center;
@@ -379,11 +385,11 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
   flex: 0 0 auto;
   width: 62px;
   height: 52px;
-  padding: 4px;
-  border: 1px solid #e4dcf4;
-  border-radius: 18px;
-  background: #fff7f4;
-  box-shadow: 0 8px 18px rgba(118, 100, 183, 0.12);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   filter: none;
 }
 .cat-mascot-img { width: 100%; height: 100%; display: block; object-fit: contain; }
@@ -666,7 +672,8 @@ function renderStudyCard() {
   const actions = isFlipped
     ? `<button class="learning" data-study-progress="learning">${iconSvg("paw")} Ещё учу<small>Нужно повторить</small></button>
        <button class="known" data-study-progress="known">${iconSvg("paw")} Знаю<small>Отлично!</small></button>`
-    : "";
+    : `<button class="learning" type="button" disabled>${iconSvg("paw")} Ещё учу<small>Сначала переверни</small></button>
+       <button class="known" type="button" disabled>${iconSvg("paw")} Знаю<small>Сначала переверни</small></button>`;
 
   const newCount = countByStatus("new");
   const newBadge = newCount ? `<span class="badge">${iconSvg("spark")} Новых слов: +${newCount}</span>` : "";
