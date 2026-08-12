@@ -10,107 +10,271 @@ CARD_UI_SCRIPT = (Path(__file__).resolve().parents[1] / "static" / "student_card
 STYLE = """
 :root {
   color-scheme: light;
-  --page-bg: #f7f5fa;
+  --page-bg: #fbf9fc;
   --surface: #ffffff;
-  --text: #39344a;
-  --muted: #686277;
-  --border: #e2deea;
-  --primary: #8b86b4;
-  --primary-border: #7a75a6;
-  --primary-soft: #ece9f2;
-  --primary-soft-text: #5c5870;
-  --learning-bg: #f0dfd8;
-  --learning-text: #75564b;
-  --learning-border: #e4ccc2;
-  --known-bg: #dcebe2;
-  --known-text: #3d644e;
-  --known-border: #c8ded1;
-  --badge-bg: #e2f0e8;
-  --badge-text: #466c56;
-  --error-bg: #f6e7e8;
-  --error-text: #7a4047;
+  --surface-tint: #f7f1fb;
+  --text: #191438;
+  --muted: #7c758d;
+  --border: #ebe6f0;
+  --primary: #7664b7;
+  --primary-dark: #5f4da2;
+  --primary-soft: #f0eafd;
+  --primary-soft-text: #6c5aa8;
+  --learning-bg: #fff7df;
+  --learning-text: #6f5a19;
+  --learning-border: #f3e6bd;
+  --known-bg: #eaf8f0;
+  --known-text: #317753;
+  --known-border: #d2eddd;
+  --danger-soft: #fff0f3;
+  --badge-bg: #ddf5ec;
+  --badge-text: #2c8765;
+  --error-bg: #fff0f3;
+  --error-text: #9b4659;
+  --shadow: 0 18px 44px rgba(42, 31, 83, 0.10);
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
+  min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  background: var(--page-bg);
+  background:
+    radial-gradient(circle at 18% 8%, rgba(237, 229, 255, 0.75), transparent 32%),
+    radial-gradient(circle at 82% 18%, rgba(255, 235, 214, 0.60), transparent 26%),
+    var(--page-bg);
   color: var(--text);
 }
-.page { max-width: 680px; margin: 0 auto; padding: 18px 14px 34px; }
-h1 { margin: 4px 0 8px; font-size: 24px; }
-.lead { margin: 0 0 16px; color: var(--muted); }
-.status { margin: 12px 0; color: var(--muted); }
-.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
-.mode-button, .tab-active {
-  background: var(--primary);
-  color: #ffffff;
-  border-color: var(--primary-border);
+.page {
+  max-width: 430px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 26px 18px 104px;
+  position: relative;
 }
-.secondary-button { background: var(--primary-soft); color: var(--primary-soft-text); border-color: var(--border); }
-.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
-.summary-card, .section-card {
-  padding: 14px;
-  border-radius: 18px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 2px 0 28px;
 }
-.summary-card h2, .section-card h2 { margin: 0 0 8px; font-size: 17px; }
-.summary-line { margin: 4px 0; color: var(--muted); }
-.summary-value { font-weight: 900; color: var(--text); }
-@media (max-width: 460px) { .summary-grid { grid-template-columns: 1fr; } }
-.study-area { margin-top: 12px; }
-.study-progress { margin: 8px 0 14px; color: var(--muted); font-weight: 700; }
-.flashcard {
-  height: 340px;
+.brand {
+  margin: 0;
+  color: var(--text);
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -1.4px;
+  font-weight: 950;
+}
+.cat-avatar {
+  width: 44px;
+  height: 44px;
   display: grid;
-  grid-template-rows: 24px 110px minmax(0, 1fr) 42px;
-  align-items: stretch;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #cdbdf4, #f4d7ed);
+  border: 1px solid #ded3f0;
+  box-shadow: 0 8px 18px rgba(118, 100, 183, 0.18);
+  font-size: 24px;
+}
+.section-title {
+  margin: 0 0 16px;
+  font-size: 28px;
+  line-height: 1.05;
+  letter-spacing: -0.8px;
+  font-weight: 950;
+}
+.status {
+  min-height: 20px;
+  margin: 8px 0 2px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 750;
+}
+.toolbar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  overflow: hidden;
-  margin: 14px 0 0;
-  padding: 24px 22px;
+  margin: 0 0 14px;
+}
+.mode-button, .tab-active {
+  background: linear-gradient(180deg, #806cc1, var(--primary));
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 10px 20px rgba(118, 100, 183, 0.22);
+}
+.secondary-button {
+  background: rgba(255, 255, 255, 0.92);
+  color: #625d70;
+  border-color: var(--border);
+}
+button {
+  min-height: 52px;
   border: 1px solid var(--border);
-  border-radius: 24px;
-  background: var(--surface);
-  box-shadow: 0 12px 28px rgba(57, 52, 74, 0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+button:active { transform: translateY(1px) scale(0.99); }
+button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-offset: 2px; }
+.study-area, .card-list { margin-top: 8px; }
+.card-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin: 14px 0 18px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.card-mode-switch button {
+  min-height: 42px;
+  border-radius: 12px;
+  border: 0;
+  font-size: 15px;
+}
+.card-mode-tab-active {
+  background: linear-gradient(180deg, #806cc1, var(--primary));
+  color: #ffffff;
+  box-shadow: 0 8px 16px rgba(118, 100, 183, 0.22);
+}
+.card-mode-tab { background: transparent; color: #6c6678; }
+.filter-switch {
+  grid-template-columns: repeat(2, max-content);
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.filter-switch button {
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+}
+.filter-chip-active { background: var(--badge-bg); color: var(--badge-text); border-color: var(--known-border); }
+.filter-chip { background: #ffffff; color: #625d70; }
+.study-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.study-progress { color: #6c6678; font-size: 15px; font-weight: 850; }
+.progress-track {
+  height: 5px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8e5ed;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), #b09be9);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 11px 13px;
+  border-radius: 16px;
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.flashcard {
+  min-height: 430px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  margin: 0;
+  padding: 26px 20px 18px;
+  border: 2px solid #e2d7fb;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow), inset 0 0 0 1px rgba(255,255,255,0.85);
   text-align: center;
   cursor: pointer;
   user-select: none;
 }
-.flashcard-with-image {
-  height: 460px;
-  grid-template-rows: 24px 110px 156px minmax(0, 1fr) 42px;
+.flashcard-with-image { min-height: 522px; }
+.flashcard:focus-visible { outline: 4px solid rgba(118, 100, 183, 0.30); outline-offset: 4px; }
+.flashcard-head {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+}
+.flashcard-side {
+  grid-column: 2;
+  margin: 0;
+  color: var(--primary);
+  font-size: 16px;
+  font-weight: 950;
+}
+.sound-pill {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 20px;
+}
+.flashcard-main {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(38px, 12vw, 52px);
+  line-height: 1.02;
+  letter-spacing: -1.2px;
+  font-weight: 950;
+  overflow-wrap: anywhere;
 }
 .flashcard-image-wrapper {
   display: grid;
-  grid-template-rows: 126px 30px;
-  height: 156px;
+  grid-template-rows: 210px auto;
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.35;
   text-align: left;
 }
-.flashcard-image-region { position: relative; height: 126px; }
+.flashcard-image-region { position: relative; height: 210px; }
 .flashcard-image {
   display: block;
   width: 100%;
-  height: 126px;
+  height: 210px;
   object-fit: cover;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 0;
+  border-radius: 16px;
   background: var(--primary-soft);
+  box-shadow: inset 0 0 0 1px rgba(42,31,83,0.05);
 }
 .flashcard-image-attribution {
-  height: 30px;
-  padding: 4px 2px 0;
+  max-height: 42px;
+  padding: 6px 2px 0;
   overflow-x: hidden;
   overflow-y: auto;
   overflow-wrap: anywhere;
   white-space: normal;
   user-select: text;
+  color: #8f879d;
 }
 .flashcard-image-attribution a { color: var(--primary-soft-text); }
 .flashcard-image-placeholder {
@@ -119,102 +283,164 @@ h1 { margin: 4px 0 8px; font-size: 24px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--primary-soft);
   color: var(--primary-soft-text);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 850;
   text-align: center;
 }
 .flashcard-image-placeholder[hidden], .flashcard-image-failed .flashcard-image { display: none; }
-.flashcard:focus-visible { outline: 3px solid var(--primary-border); outline-offset: 3px; }
-.flashcard-side {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 800;
-}
-.flashcard-main {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  overflow-y: auto;
-  color: var(--text);
-  font-size: 34px;
-  line-height: 1.15;
-  font-weight: 900;
-}
 .flashcard-extra {
   margin: 0;
-  overflow-y: auto;
-  align-self: stretch;
-  font-size: 17px;
-  line-height: 1.4;
   color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 650;
 }
-.card-list { margin-top: 18px; }
-.card-mode-switch { display: flex; gap: 8px; margin: 12px 0; }
-.card-mode-switch button { flex: 1; padding: 10px 12px; border-radius: 999px; font-size: 14px; }
-.card-mode-tab-active { background: #e7e3f0; color: #5f5980; border-color: #d8d2e5; }
-.card-mode-tab { background: #f0edf4; color: #625d70; border-color: var(--border); }
-.filter-switch { justify-content: flex-start; margin: 8px 0 6px; }
-.filter-switch button { flex: 0 0 auto; padding: 8px 12px; border-radius: 999px; font-size: 13px; }
-.filter-chip-active { background: var(--badge-bg); color: var(--badge-text); border-color: var(--known-border); }
-.filter-chip { background: #f0edf4; color: #625d70; border-color: var(--border); }
-.list-card {
-  margin: 10px 0;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
+.flashcard-sentence {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: auto;
   color: var(--text);
+  font-size: 20px;
+  line-height: 1.28;
+  font-weight: 850;
 }
-.list-card strong { display: block; font-size: 18px; margin-bottom: 4px; }
-.list-card .actions { justify-content: flex-end; }
-.badge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--badge-bg);
-  color: var(--badge-text);
-}
+.flashcard-sentence .sound-pill { flex: 0 0 auto; background: #f4effc; }
+.flip-hint { margin-top: -6px; color: #aaa3b5; font-size: 14px; font-weight: 750; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; justify-content: center; }
-.study-actions { height: 64px; min-height: 64px; margin-top: 0; align-items: center; }
-button {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-weight: 800;
-  cursor: pointer;
+.study-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 82px;
+  align-items: stretch;
 }
+.study-actions button {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 16px;
+  line-height: 1.12;
+}
+.study-actions small { display: block; color: rgba(80,72,95,0.70); font-size: 12px; font-weight: 750; }
 .learning { background: var(--learning-bg); color: var(--learning-text); border-color: var(--learning-border); }
 .known { background: var(--known-bg); color: var(--known-text); border-color: var(--known-border); }
-.homework-card {
-  margin: 12px 0;
-  padding: 16px;
+.cat-note {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: end;
+  gap: 10px;
+  margin: 12px 0 2px;
+}
+.cat-mascot {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  align-self: end;
+  font-size: 54px;
+  filter: drop-shadow(0 9px 12px rgba(118, 100, 183, 0.18));
+}
+.cat-bubble {
+  align-self: center;
+  padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: var(--surface);
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(42,31,83,0.06);
 }
-.homework-card h2 { margin: 0 0 8px; font-size: 18px; }
-.homework-date { margin: 0 0 12px; color: var(--muted); font-weight: 800; }
-.homework-block { margin: 12px 0; }
-.homework-block h3 { margin: 0 0 6px; font-size: 15px; }
-.homework-block p { margin: 0; color: var(--muted); line-height: 1.45; white-space: pre-wrap; }
+.cat-bubble strong { display: block; margin-bottom: 4px; font-size: 15px; }
+.cat-bubble span { color: var(--muted); font-size: 13px; font-weight: 650; }
+.card-list { margin-top: 18px; }
+.list-card, .homework-card, .summary-card, .section-card {
+  margin: 10px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: rgba(255,255,255,0.94);
+  box-shadow: 0 8px 24px rgba(42,31,83,0.05);
+  color: var(--text);
+}
+.list-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+.list-card strong { display: block; margin-bottom: 5px; font-size: 19px; letter-spacing: -0.2px; }
+.list-card p { margin: 3px 0 0; color: var(--muted); line-height: 1.35; }
+.list-card .actions { margin: 0; justify-content: flex-end; }
+.list-card button { min-height: 42px; padding: 9px 12px; border-radius: 12px; font-size: 13px; }
+.summary-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 14px 0; }
+.summary-card h2, .section-card h2 { margin: 0 0 12px; font-size: 22px; letter-spacing: -0.4px; }
+.summary-line { margin: 8px 0; color: var(--muted); font-weight: 750; }
+.summary-value { font-size: 24px; font-weight: 950; color: var(--primary); }
+.homework-card h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: -0.4px; }
+.homework-date { margin: 0 0 14px; color: var(--muted); font-weight: 850; }
+.homework-block { margin: 14px 0; }
+.homework-block h3 { margin: 0 0 7px; font-size: 16px; }
+.homework-block p { margin: 0; color: var(--muted); line-height: 1.48; white-space: pre-wrap; }
 .homework-list { margin: 8px 0 0; padding: 0; list-style: none; }
-.homework-list li { margin: 6px 0; color: var(--text); }
-.homework-list li::before { content: "✓"; margin-right: 8px; color: var(--badge-text); font-weight: 900; }
+.homework-list li { margin: 8px 0; color: var(--text); font-weight: 720; }
+.homework-list li::before { content: "🐾"; margin-right: 8px; }
 .homework-actions { justify-content: flex-start; }
-.homework-previous { background: #fbfafc; }
-.empty { padding: 20px; border-radius: 14px; background: var(--badge-bg); color: var(--badge-text); }
-.error { padding: 14px; border-radius: 14px; background: var(--error-bg); color: var(--error-text); }
+.homework-previous { background: rgba(255,255,255,0.72); }
+.empty {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  font-weight: 850;
+}
+.error { padding: 14px; border-radius: 16px; background: var(--error-bg); color: var(--error-text); }
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  z-index: 20;
+  width: min(430px, 100%);
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 26px 26px 0 0;
+  background: rgba(255,255,255,0.96);
+  box-shadow: 0 -8px 24px rgba(42,31,83,0.08);
+  backdrop-filter: blur(14px);
+}
+.bottom-nav button {
+  min-height: 56px;
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: #686277;
+  box-shadow: none;
+  font-size: 12px;
+}
+.bottom-nav .tab-active {
+  background: transparent;
+  color: var(--primary);
+  box-shadow: none;
+}
+.nav-icon { display: block; margin-bottom: 3px; font-size: 23px; line-height: 1; }
 .hidden { display: none; }
+@media (max-width: 360px) {
+  .page { padding-left: 12px; padding-right: 12px; }
+  .brand { font-size: 28px; }
+  .section-title { font-size: 25px; }
+  .toolbar button { font-size: 13px; padding: 10px 8px; }
+  .flashcard { padding-left: 15px; padding-right: 15px; }
+}
 """
 
 SCRIPT = """
@@ -285,11 +511,18 @@ function hideSections() {
   homeworkEl.classList.add("hidden");
 }
 
+function sectionClasses(button, isActive) {
+  if (button.closest(".bottom-nav")) {
+    return isActive ? "tab-active" : "secondary-button";
+  }
+  return isActive ? "tab-active" : "secondary-button";
+}
+
 function setActiveSection(section) {
   currentSection = section;
   navButtons.forEach((button) => {
     const isActive = button.dataset.section === section;
-    button.className = isActive ? "tab-active" : "secondary-button";
+    button.className = sectionClasses(button, isActive);
   });
 }
 
@@ -298,8 +531,8 @@ function cardModeSwitch() {
   const listClass = currentCardMode === "list" ? "card-mode-tab-active" : "card-mode-tab";
   return `
     <div class="card-mode-switch" aria-label="Режим карточек">
-      <button type="button" class="${studyClass}" data-card-mode="study">Учить</button>
-      <button type="button" class="${listClass}" data-card-mode="list">Список</button>
+      <button type="button" class="${studyClass}" data-card-mode="study">🎓 Учить</button>
+      <button type="button" class="${listClass}" data-card-mode="list">☷ Список</button>
     </div>`;
 }
 
@@ -318,16 +551,21 @@ function renderStats() {
   statsEl.innerHTML = `
     <section class="summary-grid" aria-label="Прогресс ученика">
       <article class="summary-card">
-        <h2>Мой прогресс</h2>
-        <p class="summary-line">Всего: <span class="summary-value">${total}</span></p>
-        <p class="summary-line">Знаю: <span class="summary-value">${known}</span></p>
-        <p class="summary-line">Учу: <span class="summary-value">${learning}</span></p>
-        <p class="summary-line">Новые: <span class="summary-value">${newCount}</span></p>
+        <h2>Котостатистика ⓘ</h2>
+        <p class="summary-line">🐱 знаю <span class="summary-value">${known}</span></p>
+        <p class="summary-line">🙂 повторить <span class="summary-value">${learning}</span></p>
+        <p class="summary-line">🐾 новые <span class="summary-value">${newCount}</span></p>
+        <p class="summary-line">Всего слов: <span class="summary-value">${total}</span></p>
         <p class="summary-line">Осталось учить: <span class="summary-value">${leftToStudy}</span></p>
         <p class="summary-line">Выучено: <span class="summary-value">${knownPercent}%</span></p>
       </article>
     </section>`;
-  setStatus("Статистика");
+  setStatus("Прогресс");
+}
+
+function studyProgressPercent() {
+  if (!studyCards.length) return 0;
+  return Math.max(6, Math.round(((currentIndex + 1) / studyCards.length) * 100));
 }
 
 function renderStudyCard() {
@@ -350,28 +588,47 @@ function renderStudyCard() {
   const flashcardClass = image ? "flashcard flashcard-with-image" : "flashcard";
   const sideLabel = isFlipped ? "Перевод" : "English";
   const mainText = isFlipped ? card.translation_ru : card.term;
-  const extra = isFlipped
+  const sentence = isFlipped
     ? [card.definition_en, card.example_sentence].filter(Boolean).map(escapeHtml).join("<br>")
-    : "Нажмите, чтобы перевернуть";
+    : (card.example_sentence ? escapeHtml(card.example_sentence) : "Нажмите, чтобы перевернуть");
   const actions = isFlipped
-    ? `<button class="learning" data-study-progress="learning">Ещё учу</button>
-       <button class="known" data-study-progress="known">Знаю</button>`
+    ? `<button class="learning" data-study-progress="learning">🐱 Ещё учу<small>Нужно повторить</small></button>
+       <button class="known" data-study-progress="known">😼 Знаю<small>Отлично!</small></button>`
     : "";
 
   const newCount = countByStatus("new");
-  const newBadge = newCount ? `<span class="badge">Новых слов: +${newCount}</span>` : "";
+  const newBadge = newCount ? `<span class="badge">✦ Новых слов: +${newCount}</span>` : "";
 
   studyEl.innerHTML = `
     ${cardModeSwitch()}
-    <div class="study-progress">Карточка ${currentIndex + 1} из ${studyCards.length} ${newBadge}</div>
+    <div class="study-meta">
+      <div class="study-progress">
+        Карточка ${currentIndex + 1} из ${studyCards.length}
+        <div class="progress-track" aria-hidden="true">
+          <div class="progress-fill" style="width:${studyProgressPercent()}%"></div>
+        </div>
+      </div>
+      ${newBadge}
+    </div>
     <article class="${flashcardClass}" data-flashcard data-card-id="${card.id}" role="button" tabindex="0"
              aria-pressed="${isFlipped}" aria-label="Перевернуть карточку">
-      <p class="flashcard-side">${sideLabel}</p>
+      <div class="flashcard-head">
+        <p class="flashcard-side">${sideLabel}</p>
+        <span class="sound-pill" aria-hidden="true">🔊</span>
+      </div>
       <p class="flashcard-main">${escapeHtml(mainText)}</p>
       ${image}
-      <p class="flashcard-extra">${extra || " "}</p>
+      <div class="flashcard-sentence">
+        <span class="sound-pill" aria-hidden="true">🔊</span>
+        <p class="flashcard-extra">${sentence || " "}</p>
+      </div>
+      <p class="flip-hint">Нажми, чтобы перевернуть</p>
     </article>
-    <div class="actions study-actions">${actions}</div>`;
+    <div class="actions study-actions">${actions}</div>
+    <aside class="cat-note" aria-label="Сообщение котика">
+      <div class="cat-mascot" aria-hidden="true">🐱</div>
+      <div class="cat-bubble"><strong>bro is bilingual now 🐱</strong><span>Котик ждёт твой следующий ход</span></div>
+    </aside>`;
   setStatus("");
 }
 
@@ -385,8 +642,8 @@ function listFilterSwitch() {
   const knownClass = listFilter === "known" ? "filter-chip-active" : "filter-chip";
   return `
     <div class="card-mode-switch filter-switch" aria-label="Фильтр списка">
-      <button type="button" class="${learningClass}" data-list-filter="learning">Учу</button>
-      <button type="button" class="${knownClass}" data-list-filter="known">Знаю</button>
+      <button type="button" class="${learningClass}" data-list-filter="learning">🐾 Учу</button>
+      <button type="button" class="${knownClass}" data-list-filter="known">🐱 Знаю</button>
     </div>`;
 }
 
@@ -403,9 +660,11 @@ function cardListTemplate(card) {
     : '<button class="known" data-list-progress="known">Знаю</button>';
   return `
     <article class="list-card" data-card-id="${card.id}">
-      <strong>${escapeHtml(card.term)}</strong>
-      <div>${escapeHtml(card.translation_ru)}</div>
-      ${card.example_sentence ? `<div>${escapeHtml(card.example_sentence)}</div>` : ""}
+      <div>
+        <strong>${escapeHtml(card.term)}</strong>
+        <p>${escapeHtml(card.translation_ru)}</p>
+        ${card.example_sentence ? `<p>${escapeHtml(card.example_sentence)}</p>` : ""}
+      </div>
       <div class="actions">${action}</div>
     </article>`;
 }
@@ -453,7 +712,7 @@ function homeworkCardTemplate(item) {
       ${summaryBlock}
       ${winsBlock}
       ${focusBlock}
-      <div class="homework-block"><h3>📝 Домашка</h3><ul class="homework-list">${homeworkList}</ul></div>
+      <div class="homework-block"><h3>✏️ Домашка</h3><ul class="homework-list">${homeworkList}</ul></div>
       ${cardsButton}
     </article>`;
 }
@@ -628,23 +887,34 @@ def _page() -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>English Tutor AI — мои карточки</title>
+  <title>TutorHelper — мои занятия</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>{STYLE}</style>
 </head>
 <body>
   <main class="page">
-    <h1>Мои занятия</h1>
+    <header class="app-header">
+      <h1 class="brand">TutorHelper</h1>
+      <div class="cat-avatar" aria-hidden="true">🐱</div>
+    </header>
+    <h2 class="section-title">Мои занятия 🐱</h2>
     <div class="toolbar" aria-label="Разделы ученика">
-      <button type="button" data-section="cards" class="mode-button">Карточки</button>
-      <button type="button" data-section="homework" class="secondary-button">Домашка</button>
-      <button type="button" data-section="stats" class="secondary-button">Статистика</button>
+      <button type="button" data-section="cards" class="mode-button">🎴 Карточки</button>
+      <button type="button" data-section="homework" class="secondary-button">✏️ Домашка</button>
+      <button type="button" data-section="stats" class="secondary-button">▥ Статистика</button>
     </div>
     <div id="status" class="status">Загрузка...</div>
     <section id="study" class="study-area"></section>
     <section id="homework" class="card-list hidden"></section>
     <section id="stats" class="card-list hidden"></section>
   </main>
+  <nav class="bottom-nav" aria-label="Нижняя навигация">
+    <button type="button" data-section="cards" class="tab-active"><span class="nav-icon">🎓</span>Учиться</button>
+    <button type="button" data-section="homework" class="secondary-button">
+      <span class="nav-icon">▣</span>Мои слова
+    </button>
+    <button type="button" data-section="stats" class="secondary-button"><span class="nav-icon">▥</span>Прогресс</button>
+  </nav>
   <script>{CARD_UI_SCRIPT}</script>
   <script>{SCRIPT}</script>
 </body>

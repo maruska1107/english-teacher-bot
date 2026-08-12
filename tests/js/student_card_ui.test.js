@@ -201,3 +201,17 @@ test('student webapp exposes homework section and loads homework API', () => {
   assert.ok(studentWebappSource.includes('Текущее ДЗ'));
   assert.ok(studentWebappSource.includes('Предыдущее ДЗ'));
 });
+
+test('student webapp uses cat-inspired TutorHelper visual shell without adding new progress actions', () => {
+  assert.ok(studentWebappSource.includes('TutorHelper'));
+  assert.ok(studentWebappSource.includes('class="cat-avatar"'));
+  assert.ok(studentWebappSource.includes('class="bottom-nav"'));
+  assert.ok(studentWebappSource.includes('Мои занятия 🐱'));
+  assert.ok(studentWebappSource.includes('Карточка ${currentIndex + 1} из ${studyCards.length}'));
+  assert.ok(studentWebappSource.includes('Новых слов: +${newCount}'));
+  assert.ok(studentWebappSource.includes('bro is bilingual now 🐱'));
+  assert.ok(studentWebappSource.includes('Котик ждёт твой следующий ход'));
+  assert.equal(studentWebappSource.includes('data-study-progress="forgot"'), false);
+  assert.equal(studentWebappSource.includes('XP'), false);
+  assert.equal(studentWebappSource.includes('streak'), false);
+});

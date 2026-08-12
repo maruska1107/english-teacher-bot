@@ -190,16 +190,16 @@ def test_student_cards_webapp_page_is_available():
     assert "Знаю" in response.text
     assert response.text.count('data-study-progress="learning"') == 1
     assert response.text.count('data-study-progress="known"') == 1
-    assert "height: 340px" in response.text
-    assert "grid-template-rows: 24px 110px minmax(0, 1fr) 42px" in response.text
+    assert "TutorHelper" in response.text
+    assert "cat-avatar" in response.text
+    assert "bottom-nav" in response.text
+    assert "min-height: 430px" in response.text
     assert ".flashcard-with-image" in response.text
-    assert "height: 460px" in response.text
-    assert "grid-template-rows: 24px 110px 156px minmax(0, 1fr) 42px" in response.text
+    assert "min-height: 522px" in response.text
     assert ".flashcard-image" in response.text
     assert "width: 100%" in response.text
-    assert "height: 126px" in response.text
+    assert "height: 210px" in response.text
     assert "object-fit: cover" in response.text
-    assert "border: 1px solid var(--border)" in response.text
     assert "loading=\"lazy\"" in response.text
     assert "referrerpolicy=\"no-referrer\"" in response.text
     assert "handleImageError(img)" in response.text
@@ -219,7 +219,7 @@ def test_student_cards_webapp_page_is_available():
     assert 'class="flashcard-image-license"' in response.text
     assert "card?.image_source_url" in response.text
     assert "card?.image_license_url" in response.text
-    assert "grid-template-rows: 126px 30px" in response.text
+    assert "grid-template-rows: 210px auto" in response.text
     assert "overflow-wrap: anywhere" in response.text
     assert "white-space: normal" in response.text
     assert 'role="button" tabindex="0"' in response.text
@@ -228,13 +228,13 @@ def test_student_cards_webapp_page_is_available():
     assert "card.image_search_query" not in response.text
     assert "api.openverse.org" not in response.text
     assert ".flashcard-main" in response.text
-    assert "overflow-y: auto" in response.text
-    assert ".study-actions { height: 64px; min-height: 64px" in response.text
+    assert "overflow-wrap: anywhere" in response.text
+    assert ".study-actions" in response.text
     assert '<div class="actions study-actions">${actions}</div>' in response.text
-    assert "#f7f5fa" in response.text
-    assert "#8b86b4" in response.text
-    assert "#f0dfd8" in response.text
-    assert "#dcebe2" in response.text
+    assert "#fbf9fc" in response.text
+    assert "#7664b7" in response.text
+    assert "#fff7df" in response.text
+    assert "#eaf8f0" in response.text
     assert "var(--tg-theme-" not in response.text
     assert "Новых слов: +${newCount}" in response.text
     assert 'data-card-mode="study"' in response.text
@@ -263,7 +263,7 @@ def test_student_cards_webapp_page_is_available():
     assert "Учить эти слова" not in response.text
     assert "renderUnlearned" not in response.text
     assert "renderStats" in response.text
-    assert "Мой прогресс" in response.text
+    assert "Котостатистика" in response.text
     assert "knownPercent" in response.text
     assert "Осталось учить" in response.text
     body_before_study = response.text.split("</style>", maxsplit=1)[1].split('<section id="study"', maxsplit=1)[0]
