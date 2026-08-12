@@ -179,8 +179,10 @@ button:focus-visible { outline: 3px solid rgba(118, 100, 183, 0.34); outline-off
 }
 .section-pill span {
   min-height: 42px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border-radius: 12px;
   background: linear-gradient(180deg, #806cc1, var(--primary));
   color: #ffffff;
@@ -626,7 +628,7 @@ function renderStats() {
   const knownPercent = total ? Math.round((known / total) * 100) : 0;
 
   statsEl.innerHTML = `
-    <div class="section-pill"><span>Прогресс</span></div>
+    <div class="section-pill"><span>${iconSvg("stats")} Прогресс</span></div>
     <section class="summary-grid" aria-label="Прогресс ученика">
       <article class="summary-card">
         <h2>Котостатистика</h2>
@@ -799,17 +801,17 @@ function renderHomework() {
   setActiveSection("homework");
   homeworkEl.classList.remove("hidden");
   if (!homeworkLoaded) {
-    homeworkEl.innerHTML = '<div class="section-pill"><span>Домашка</span></div><div class="status">Загружаю домашку...</div>';
+    homeworkEl.innerHTML = `<div class="section-pill"><span>${iconSvg("homework")} Домашка</span></div><div class="status">Загружаю домашку...</div>`;
     setStatus("Загружаю домашку...");
     loadHomework();
     return;
   }
   if (!homeworkItems.length) {
-    homeworkEl.innerHTML = '<div class="section-pill"><span>Домашка</span></div><div class="empty">Пока домашки нет. После урока преподаватель отправит её сюда.</div>';
+    homeworkEl.innerHTML = `<div class="section-pill"><span>${iconSvg("homework")} Домашка</span></div><div class="empty">Пока домашки нет. После урока преподаватель отправит её сюда.</div>`;
     setStatus("");
     return;
   }
-  homeworkEl.innerHTML = `<div class="section-pill"><span>Домашка</span></div>${homeworkItems.map((item) => homeworkCardTemplate(item)).join("")}`;
+  homeworkEl.innerHTML = `<div class="section-pill"><span>${iconSvg("homework")} Домашка</span></div>${homeworkItems.map((item) => homeworkCardTemplate(item)).join("")}`;
   setStatus("");
 }
 
@@ -1003,7 +1005,7 @@ def _page() -> str:
       </span>
       Учиться
     </button>
-    <button type="button" data-section="cards" data-card-mode="list" class="secondary-button">
+    <button type="button" data-section="cards" data-card-mode="study" class="secondary-button">
       <span class="nav-icon">
         <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h10a4 4 0 0 1 4 4v10H9a4 4 0 0 0-4 4z"></path><path d="M5 5v18"></path><path d="M9 9h6"></path><path d="M9 13h5"></path></svg>
       </span>
