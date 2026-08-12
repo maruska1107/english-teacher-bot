@@ -472,7 +472,7 @@ let homeworkLoaded = false;
 let studyCards = [];
 let currentIndex = 0;
 let isFlipped = false;
-let currentSection = "cards";
+let currentSection = "homework";
 let currentCardMode = "study";
 let listFilter = "learning";
 
@@ -825,7 +825,7 @@ async function loadCards() {
     allCards = data.cards;
     currentIndex = 0;
     isFlipped = false;
-    renderStudyCard();
+    renderCurrentSection();
   } catch (error) {
     studyEl.innerHTML = `<div class="error">Ошибка загрузки: ${escapeHtml(error.message)}</div>`;
     setStatus("Ошибка");
@@ -945,7 +945,7 @@ def _page() -> str:
     <section id="stats" class="card-list hidden"></section>
   </main>
   <nav class="bottom-nav" aria-label="Нижняя навигация">
-    <button type="button" data-section="cards" data-card-mode="study" class="tab-active">
+    <button type="button" data-section="homework" class="tab-active">
       <span class="nav-icon">
         <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8 12 4l8 4-8 4z"></path><path d="M7 10.5V15c2.5 2 7.5 2 10 0v-4.5"></path><path d="M20 8v5"></path></svg>
       </span>
