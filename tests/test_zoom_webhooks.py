@@ -294,3 +294,59 @@ def test_recording_completed_ignores_unsubscribed_meeting():
     assert response.status_code == 200
     assert response.json() == {"status": "ignored_unsubscribed_meeting"}
     assert session.query(Lesson).count() == 0
+
+
+def test_recording_completed_ignores_subscribed_meeting_without_transcript_file():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    session.add(
+        ZoomToken(
+            user_id=teacher.id,
+            zoom_account_id="account-1",
+            zoom_user_id="zoom-user-1",
+            access_token="access",
+            refresh_token="refresh",
+            expires_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+    )
+    session.add(
+        ZoomMeetingSubscription(
+            user_id=teacher.id,
+            meeting_id="987654324",
+            meeting_url="https://us06web.zoom.us/j/987654324",
+            is_active=True,
+        )
+    )
+    session.commit()
+    client = make_client(session)
+    payload = {
+        "event": "recording.completed",
+        "event_ts": 126,
+        "payload": {
+            "account_id": "account-1",
+            "object": {
+                "id": "987654324",
+                "uuid": "meeting-uuid-4",
+                "host_id": "zoom-user-1",
+                "recording_files": [
+                    {
+                        "id": "file-4",
+                        "file_type": "MP4",
+                        "download_url": "https://zoom.example/video.mp4",
+                    }
+                ],
+            },
+        },
+    }
+
+    response = client.post(
+        "/api/zoom/webhook",
+        content=json.dumps(payload, separators=(",", ":")),
+        headers=signed_headers(payload),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ignored_no_transcript"}
+    assert session.query(Lesson).count() == 0
