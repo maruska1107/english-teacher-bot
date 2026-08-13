@@ -32,6 +32,8 @@ class ZoomUserProfile:
 class ZoomOAuthClientProtocol(Protocol):
     async def exchange_code_for_token(self, code: str) -> ZoomTokenPayload: ...
 
+    async def refresh_access_token(self, refresh_token: str) -> ZoomTokenPayload: ...
+
     async def get_current_user(self, access_token: str) -> ZoomUserProfile: ...
 
 
@@ -74,6 +76,28 @@ class ZoomOAuthClient:
         return ZoomUserProfile(
             zoom_user_id=payload["id"],
             zoom_account_id=payload.get("account_id") or payload.get("accountId") or "",
+        )
+
+    async def refresh_access_token(self, refresh_token: str) -> ZoomTokenPayload:
+        if self.settings.zoom_client_id is None or self.settings.zoom_client_secret is None:
+            raise RuntimeError("Zoom OAuth client credentials are not configured")
+
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.post(
+                ZOOM_TOKEN_URL,
+                auth=(self.settings.zoom_client_id, self.settings.zoom_client_secret.get_secret_value()),
+                data={
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+
+        return ZoomTokenPayload(
+            access_token=payload["access_token"],
+            refresh_token=payload.get("refresh_token") or refresh_token,
+            expires_in=int(payload.get("expires_in", 3600)),
         )
 
 

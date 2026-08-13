@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -8,6 +8,7 @@ from app.core.config import Settings
 from app.db.base import Base
 from app.models import LearningProfile, Lesson, User, ZoomToken
 from app.services.lesson_processing import LessonProcessingService
+from app.zoom.oauth import ZoomTokenPayload
 
 
 class FakeTranscriptClient:
@@ -15,6 +16,30 @@ class FakeTranscriptClient:
         assert download_url == "https://zoom.example/transcript.vtt"
         assert access_token == "access"
         return "Teacher: What did you do yesterday? Student: I go to London yesterday."
+
+
+class RecordingTranscriptClient:
+    def __init__(self) -> None:
+        self.access_tokens: list[str] = []
+
+    async def download_transcript(self, download_url: str, access_token: str) -> str:
+        self.access_tokens.append(access_token)
+        return "Teacher: What did you do yesterday? Student: I go to London yesterday."
+
+
+class FakeZoomOAuthClient:
+    def __init__(self) -> None:
+        self.refresh_tokens: list[str] = []
+
+    async def exchange_code_for_token(self, code: str) -> ZoomTokenPayload:
+        raise AssertionError("not used")
+
+    async def refresh_access_token(self, refresh_token: str) -> ZoomTokenPayload:
+        self.refresh_tokens.append(refresh_token)
+        return ZoomTokenPayload(access_token="fresh-access", refresh_token="fresh-refresh", expires_in=3600)
+
+    async def get_current_user(self, access_token: str):
+        raise AssertionError("not used")
 
 
 class FakeLLMClient:
@@ -83,7 +108,7 @@ async def test_process_pending_lesson_downloads_transcript_analyzes_and_notifies
             zoom_user_id="zoom-user-1",
             access_token="access",
             refresh_token="refresh",
-            expires_at=datetime(2026, 1, 1, tzinfo=UTC),
+            expires_at=datetime(2099, 1, 1, tzinfo=UTC),
         )
     )
     profile = LearningProfile(
@@ -134,3 +159,48 @@ async def test_process_pending_lesson_downloads_transcript_analyzes_and_notifies
     ]
     assert notifier.messages[1][0] == 9001
     assert "Скопирован отчёт по уроку" in notifier.messages[1][1]
+
+
+async def test_process_lesson_refreshes_expired_zoom_access_token_before_downloading_transcript():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    token = ZoomToken(
+        user_id=teacher.id,
+        zoom_account_id="account-1",
+        zoom_user_id="zoom-user-1",
+        access_token="expired-access",
+        refresh_token="old-refresh",
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),
+    )
+    session.add(token)
+    lesson = Lesson(
+        teacher_user_id=teacher.id,
+        meeting_id="1",
+        meeting_uuid="uuid-1",
+        transcript_download_url="https://zoom.example/transcript.vtt",
+        transcript="already downloaded transcript",
+        processing_status="pending",
+    )
+    session.add(lesson)
+    session.commit()
+    transcript_client = RecordingTranscriptClient()
+    zoom_oauth_client = FakeZoomOAuthClient()
+    service = LessonProcessingService(
+        session=session,
+        settings=make_settings(),
+        transcript_client=transcript_client,
+        zoom_oauth_client=zoom_oauth_client,
+        llm_client=FakeLLMClient(),
+        notifier=FakeTelegramNotifier(),
+    )
+
+    lesson.transcript = None
+    await service.process_lesson(lesson.id)
+
+    assert zoom_oauth_client.refresh_tokens == ["old-refresh"]
+    assert transcript_client.access_tokens == ["fresh-access"]
+    refreshed_token = session.get(ZoomToken, token.id)
+    assert refreshed_token.access_token == "fresh-access"
+    assert refreshed_token.refresh_token == "fresh-refresh"
