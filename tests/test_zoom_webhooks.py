@@ -81,6 +81,24 @@ def test_zoom_url_validation_returns_encrypted_token():
     }
 
 
+def test_zoom_url_validation_accepts_unsigned_marketplace_validation_request():
+    session = make_session()
+    client = make_client(session)
+    payload = {"event": "endpoint.url_validation", "payload": {"plainToken": "plain-token"}}
+
+    response = client.post(
+        "/api/zoom/webhook",
+        content=json.dumps(payload, separators=(",", ":")),
+        headers={"content-type": "application/json"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "plainToken": "plain-token",
+        "encryptedToken": hmac.new(b"webhook-secret", b"plain-token", hashlib.sha256).hexdigest(),
+    }
+
+
 def test_zoom_webhook_rejects_invalid_signature():
     session = make_session()
     client = make_client(session)

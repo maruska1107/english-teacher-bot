@@ -71,13 +71,8 @@ async def zoom_webhook(
     x_zm_request_timestamp: Annotated[str | None, Header()] = None,
     x_zm_signature: Annotated[str | None, Header()] = None,
 ) -> dict[str, str]:
-    body = await verify_zoom_webhook_signature(
-        request=request,
-        settings=settings,
-        x_zm_request_timestamp=x_zm_request_timestamp,
-        x_zm_signature=x_zm_signature,
-    )
-    payload = json.loads(body)
+    raw_body = await request.body()
+    payload = json.loads(raw_body)
     event_type = payload.get("event")
 
     if event_type == "endpoint.url_validation":
@@ -90,6 +85,15 @@ async def zoom_webhook(
                 plain_token,
             ),
         }
+
+    body = await verify_zoom_webhook_signature(
+        request=request,
+        settings=settings,
+        x_zm_request_timestamp=x_zm_request_timestamp,
+        x_zm_signature=x_zm_signature,
+    )
+    payload = json.loads(body)
+    event_type = payload.get("event")
 
     if event_type == "recording.completed":
         result = ZoomWebhookService(session).handle_recording_completed(payload)
