@@ -368,3 +368,61 @@ def test_recording_completed_ignores_subscribed_meeting_without_transcript_file(
     assert response.status_code == 200
     assert response.json() == {"status": "ignored_no_transcript"}
     assert session.query(Lesson).count() == 0
+
+
+def test_recording_transcript_completed_creates_lesson_for_subscribed_meeting():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    session.add(
+        ZoomToken(
+            user_id=teacher.id,
+            zoom_account_id="account-1",
+            zoom_user_id="zoom-user-1",
+            access_token="access",
+            refresh_token="refresh",
+            expires_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+    )
+    session.add(
+        ZoomMeetingSubscription(
+            user_id=teacher.id,
+            meeting_id="987654325",
+            meeting_url="https://us06web.zoom.us/j/987654325",
+            is_active=True,
+        )
+    )
+    session.commit()
+    client = make_client(session)
+    payload = {
+        "event": "recording.transcript_completed",
+        "event_ts": 127,
+        "payload": {
+            "account_id": "account-1",
+            "object": {
+                "id": "987654325",
+                "uuid": "meeting-uuid-5",
+                "host_id": "zoom-user-1",
+                "recording_file": {
+                    "id": "file-5",
+                    "file_type": "TRANSCRIPT",
+                    "download_url": "https://zoom.example/transcript.vtt",
+                },
+            },
+        },
+    }
+
+    response = client.post(
+        "/api/zoom/webhook",
+        content=json.dumps(payload, separators=(",", ":")),
+        headers=signed_headers(payload),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "accepted"}
+    lesson = session.query(Lesson).one()
+    assert lesson.meeting_id == "987654325"
+    assert lesson.transcript_download_url == "https://zoom.example/transcript.vtt"
+    event = session.query(ProcessedWebhookEvent).one()
+    assert event.event_type == "recording.transcript_completed"

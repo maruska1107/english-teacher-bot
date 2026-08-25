@@ -24,6 +24,7 @@ class ZoomWebhookService:
 
     def handle_recording_completed(self, payload: dict[str, Any]) -> RecordingCompletedResult:
         event_id = self._event_id(payload)
+        event_type = str(payload.get("event") or "recording.completed")
         if self.events.get(event_id) is not None:
             return RecordingCompletedResult(status="already_processed")
 
@@ -32,7 +33,7 @@ class ZoomWebhookService:
         zoom_account_id = event_payload.get("account_id")
         zoom_host_id = meeting.get("host_id")
         if not zoom_host_id:
-            self.events.create(event_id=event_id, event_type="recording.completed", status="ignored_no_host")
+            self.events.create(event_id=event_id, event_type=event_type, status="ignored_no_host")
             self.session.commit()
             return RecordingCompletedResult(status="ignored_no_host")
         teacher_user_id = self.zoom_tokens.find_teacher_id_for_zoom_host(
@@ -40,7 +41,7 @@ class ZoomWebhookService:
             zoom_account_id=zoom_account_id,
         )
         if teacher_user_id is None:
-            self.events.create(event_id=event_id, event_type="recording.completed", status="ignored_no_teacher")
+            self.events.create(event_id=event_id, event_type=event_type, status="ignored_no_teacher")
             self.session.commit()
             return RecordingCompletedResult(status="ignored_no_teacher")
 
@@ -52,7 +53,7 @@ class ZoomWebhookService:
         if subscription is None:
             self.events.create(
                 event_id=event_id,
-                event_type="recording.completed",
+                event_type=event_type,
                 status="ignored_unsubscribed_meeting",
             )
             self.session.commit()
@@ -62,7 +63,7 @@ class ZoomWebhookService:
         if transcript_download_url is None:
             self.events.create(
                 event_id=event_id,
-                event_type="recording.completed",
+                event_type=event_type,
                 status="ignored_no_transcript",
             )
             self.session.commit()
@@ -77,7 +78,7 @@ class ZoomWebhookService:
             processing_status="pending",
         )
         self.session.add(lesson)
-        self.events.create(event_id=event_id, event_type="recording.completed", status="accepted")
+        self.events.create(event_id=event_id, event_type=event_type, status="accepted")
         self.session.commit()
         return RecordingCompletedResult(status="accepted", lesson=lesson)
 
@@ -88,6 +89,11 @@ class ZoomWebhookService:
         return f"{event}:{meeting_uuid}:{event_ts}"
 
     def _transcript_download_url(self, meeting: dict[str, Any]) -> str | None:
+        if meeting.get("file_type") == "TRANSCRIPT" and meeting.get("download_url"):
+            return meeting.get("download_url")
+        recording_file = meeting.get("recording_file") or {}
+        if recording_file.get("file_type") == "TRANSCRIPT" and recording_file.get("download_url"):
+            return recording_file.get("download_url")
         for recording_file in meeting.get("recording_files") or []:
             if recording_file.get("file_type") == "TRANSCRIPT":
                 return recording_file.get("download_url")

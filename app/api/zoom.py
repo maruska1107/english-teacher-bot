@@ -95,7 +95,7 @@ async def zoom_webhook(
     payload = json.loads(body)
     event_type = payload.get("event")
 
-    if event_type == "recording.completed":
+    if event_type in {"recording.completed", "recording.transcript_completed"}:
         result = ZoomWebhookService(session).handle_recording_completed(payload)
         if settings.auto_process_zoom_webhook_lessons and result.lesson is not None:
             await lesson_processor.process_lesson(result.lesson.id)
