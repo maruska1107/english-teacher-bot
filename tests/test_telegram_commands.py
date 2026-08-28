@@ -760,6 +760,28 @@ async def test_add_zoom_meeting_can_link_to_learning_profile_by_name():
     assert "Профиль: Speaking B1" in gateway.sent_messages[0][1]
 
 
+async def test_add_zoom_meeting_creates_default_profile_in_zoom_review_mode():
+    session = make_session()
+    gateway = FakeTelegramGateway()
+    service = TelegramCommandService(
+        session=session,
+        gateway=gateway,
+        settings=make_settings(zoom_review_access_enabled=True),
+    )
+
+    await service.handle_add_zoom_meeting(
+        telegram_user_id=7777,
+        chat_id=555,
+        meeting_link="https://us06web.zoom.us/j/777888999",
+    )
+
+    user = session.query(User).filter_by(telegram_user_id=7777).one()
+    profile = session.query(LearningProfile).filter_by(teacher_user_id=user.id, name="Test Student").one()
+    subscription = session.query(ZoomMeetingSubscription).filter_by(user_id=user.id, meeting_id="777888999").one()
+    assert subscription.learning_profile_id == profile.id
+    assert "Профиль: Test Student" in gateway.sent_messages[0][1]
+
+
 async def test_add_zoom_meeting_returns_help_for_unknown_learning_profile():
     session = make_session()
     gateway = FakeTelegramGateway()

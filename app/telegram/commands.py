@@ -156,6 +156,10 @@ class TelegramCommandService:
                 await self.gateway.send_message(chat_id, f"Учебный профиль не найден: {profile_name}")
                 return
             learning_profile_id = profile.id
+        elif self.settings.zoom_review_access_enabled:
+            profile = self._default_review_profile(user.id)
+            learning_profile_id = profile.id
+            profile_name = profile.name
         self.zoom_meeting_subscriptions.upsert_for_user(
             user_id=user.id,
             meeting_id=meeting_id,
@@ -541,6 +545,16 @@ class TelegramCommandService:
 
     def _is_allowed_teacher(self, telegram_user_id: int) -> bool:
         return telegram_user_id in self.settings.allowed_teacher_ids
+
+    def _default_review_profile(self, teacher_user_id: int) -> LearningProfile:
+        profiles = self.learning_profiles.list_for_teacher(teacher_user_id)
+        if profiles:
+            return profiles[0]
+        profile, _student = self.learning_profiles.create_individual_profile(
+            teacher_user_id=teacher_user_id,
+            student_name="Test Student",
+        )
+        return profile
 
     async def _send_access_denied(self, chat_id: int, telegram_user_id: int) -> None:
         await self.gateway.send_message(
