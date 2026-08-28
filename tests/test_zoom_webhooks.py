@@ -189,9 +189,11 @@ def test_recording_completed_is_idempotent_and_creates_lesson_for_zoom_user():
 class FakeLessonProcessor:
     def __init__(self) -> None:
         self.lesson_ids: list[int] = []
+        self.download_tokens: list[str | None] = []
 
-    async def process_lesson(self, lesson_id: int) -> None:
+    async def process_lesson(self, lesson_id: int, zoom_download_token: str | None = None) -> None:
         self.lesson_ids.append(lesson_id)
+        self.download_tokens.append(zoom_download_token)
 
 
 def test_recording_completed_can_trigger_lesson_processing_pipeline():
@@ -400,6 +402,7 @@ def test_recording_transcript_completed_creates_lesson_for_subscribed_meeting():
         "event_ts": 127,
         "payload": {
             "account_id": "account-1",
+            "download_token": "webhook-download-token",
             "object": {
                 "id": "987654325",
                 "uuid": "meeting-uuid-5",
@@ -426,3 +429,55 @@ def test_recording_transcript_completed_creates_lesson_for_subscribed_meeting():
     assert lesson.transcript_download_url == "https://zoom.example/transcript.vtt"
     event = session.query(ProcessedWebhookEvent).one()
     assert event.event_type == "recording.transcript_completed"
+
+
+def test_recording_transcript_completed_returns_webhook_download_token_for_processing():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    session.add(
+        ZoomToken(
+            user_id=teacher.id,
+            zoom_account_id="account-1",
+            zoom_user_id="zoom-user-1",
+            access_token="access",
+            refresh_token="refresh",
+            expires_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+    )
+    session.add(
+        ZoomMeetingSubscription(
+            user_id=teacher.id,
+            meeting_id="987654326",
+            meeting_url="https://us06web.zoom.us/j/987654326",
+            is_active=True,
+        )
+    )
+    session.commit()
+    from app.zoom.webhooks import ZoomWebhookService
+
+    result = ZoomWebhookService(session).handle_recording_completed(
+        {
+            "event": "recording.transcript_completed",
+            "event_ts": 128,
+            "payload": {
+                "account_id": "account-1",
+                "download_token": "webhook-download-token",
+                "object": {
+                    "id": "987654326",
+                    "uuid": "meeting-uuid-6",
+                    "host_id": "zoom-user-1",
+                    "recording_file": {
+                        "id": "file-6",
+                        "file_type": "TRANSCRIPT",
+                        "download_url": "https://zoom.example/transcript.vtt",
+                    },
+                },
+            },
+        }
+    )
+
+    assert result.status == "accepted"
+    assert result.lesson is not None
+    assert result.download_token == "webhook-download-token"

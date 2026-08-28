@@ -12,19 +12,42 @@ from app.zoom.oauth import ZoomTokenPayload
 
 
 class FakeTranscriptClient:
-    async def download_transcript(self, download_url: str, access_token: str) -> str:
+    async def download_transcript(
+        self,
+        download_url: str,
+        access_token: str,
+        download_token: str | None = None,
+    ) -> str:
         assert download_url == "https://zoom.example/transcript.vtt"
         assert access_token == "access"
+        assert download_token is None
         return "Teacher: What did you do yesterday? Student: I go to London yesterday."
 
 
 class RecordingTranscriptClient:
     def __init__(self) -> None:
         self.access_tokens: list[str] = []
+        self.download_tokens: list[str | None] = []
 
-    async def download_transcript(self, download_url: str, access_token: str) -> str:
+    async def download_transcript(
+        self,
+        download_url: str,
+        access_token: str,
+        download_token: str | None = None,
+    ) -> str:
         self.access_tokens.append(access_token)
+        self.download_tokens.append(download_token)
         return "Teacher: What did you do yesterday? Student: I go to London yesterday."
+
+
+class FailingTranscriptClient:
+    async def download_transcript(
+        self,
+        download_url: str,
+        access_token: str,
+        download_token: str | None = None,
+    ) -> str:
+        raise RuntimeError(f"Failed to download {download_url}?access_token=secret-token")
 
 
 class FakeZoomOAuthClient:
@@ -201,6 +224,90 @@ async def test_process_lesson_refreshes_expired_zoom_access_token_before_downloa
 
     assert zoom_oauth_client.refresh_tokens == ["old-refresh"]
     assert transcript_client.access_tokens == ["fresh-access"]
+    assert transcript_client.download_tokens == [None]
     refreshed_token = session.get(ZoomToken, token.id)
     assert refreshed_token.access_token == "fresh-access"
     assert refreshed_token.refresh_token == "fresh-refresh"
+
+
+async def test_process_lesson_passes_zoom_webhook_download_token_to_transcript_client():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    session.add(
+        ZoomToken(
+            user_id=teacher.id,
+            zoom_account_id="account-1",
+            zoom_user_id="zoom-user-1",
+            access_token="access",
+            refresh_token="refresh",
+            expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+        )
+    )
+    lesson = Lesson(
+        teacher_user_id=teacher.id,
+        meeting_id="1",
+        meeting_uuid="uuid-1",
+        transcript_download_url="https://zoom.example/transcript.vtt",
+        processing_status="pending",
+    )
+    session.add(lesson)
+    session.commit()
+    transcript_client = RecordingTranscriptClient()
+    service = LessonProcessingService(
+        session=session,
+        settings=make_settings(),
+        transcript_client=transcript_client,
+        llm_client=FakeLLMClient(),
+        notifier=FakeTelegramNotifier(),
+    )
+
+    await service.process_lesson(lesson.id, zoom_download_token="webhook-download-token")
+
+    assert transcript_client.access_tokens == ["access"]
+    assert transcript_client.download_tokens == ["webhook-download-token"]
+
+
+async def test_process_lesson_redacts_download_urls_in_admin_error_notification():
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    session.add(
+        ZoomToken(
+            user_id=teacher.id,
+            zoom_account_id="account-1",
+            zoom_user_id="zoom-user-1",
+            access_token="access",
+            refresh_token="refresh",
+            expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+        )
+    )
+    lesson = Lesson(
+        teacher_user_id=teacher.id,
+        meeting_id="1",
+        meeting_uuid="uuid-1",
+        transcript_download_url="https://zoom.example/transcript.vtt",
+        processing_status="pending",
+    )
+    session.add(lesson)
+    session.commit()
+    notifier = FakeTelegramNotifier()
+    service = LessonProcessingService(
+        session=session,
+        settings=make_settings(),
+        transcript_client=FailingTranscriptClient(),
+        llm_client=FakeLLMClient(),
+        notifier=notifier,
+    )
+
+    try:
+        await service.process_lesson(lesson.id)
+    except RuntimeError:
+        pass
+
+    assert notifier.messages[0][0] == 9001
+    assert "[REDACTED_URL]" in notifier.messages[0][1]
+    assert "https://zoom.example" not in notifier.messages[0][1]
+    assert "secret-token" not in notifier.messages[0][1]

@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
@@ -30,12 +31,12 @@ class LessonProcessingService:
         self.notifier = notifier
         self.zoom_tokens = ZoomTokenRepository(session)
 
-    async def process_lesson(self, lesson_id: int) -> Lesson:
+    async def process_lesson(self, lesson_id: int, zoom_download_token: str | None = None) -> Lesson:
         lesson = self.session.get(Lesson, lesson_id)
         if lesson is None:
             raise ValueError("Lesson not found")
         try:
-            await self._download_transcript_if_needed(lesson)
+            await self._download_transcript_if_needed(lesson, zoom_download_token=zoom_download_token)
             analysis = await AnalysisService(
                 session=self.session,
                 settings=self.settings,
@@ -62,17 +63,18 @@ class LessonProcessingService:
                 )
             return lesson
         except Exception as exc:
+            safe_error = self._safe_error_message(exc)
             lesson.processing_status = "failed"
-            lesson.processing_error = str(exc)
+            lesson.processing_error = safe_error
             self.session.commit()
             if self.settings.telegram_admin_id is not None:
                 await self._notifier().send_message(
                     self.settings.telegram_admin_id,
-                    f"Критическая ошибка обработки урока lesson_id={lesson.id}: {exc}",
+                    f"Критическая ошибка обработки урока lesson_id={lesson.id}: {safe_error}",
                 )
             raise
 
-    async def _download_transcript_if_needed(self, lesson: Lesson) -> None:
+    async def _download_transcript_if_needed(self, lesson: Lesson, zoom_download_token: str | None = None) -> None:
         if lesson.transcript:
             return
         if not lesson.transcript_download_url:
@@ -86,6 +88,7 @@ class LessonProcessingService:
         lesson.transcript = await self.transcript_client.download_transcript(
             lesson.transcript_download_url,
             access_token,
+            zoom_download_token,
         )
         lesson.processing_status = "transcript_ready"
         self.session.commit()
@@ -119,3 +122,6 @@ class LessonProcessingService:
 
     def _teacher_message(self, teacher_report: str, draft_card_count: int = 0) -> str:
         return TEACHER_LESSON_READY_TEXT_TEMPLATE.format(card_count=draft_card_count)
+
+    def _safe_error_message(self, exc: Exception) -> str:
+        return re.sub(r"https?://\S+", "[REDACTED_URL]", str(exc))

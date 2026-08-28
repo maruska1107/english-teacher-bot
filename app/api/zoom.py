@@ -98,7 +98,7 @@ async def zoom_webhook(
     if event_type in {"recording.completed", "recording.transcript_completed"}:
         result = ZoomWebhookService(session).handle_recording_completed(payload)
         if settings.auto_process_zoom_webhook_lessons and result.lesson is not None:
-            await lesson_processor.process_lesson(result.lesson.id)
+            await lesson_processor.process_lesson(result.lesson.id, zoom_download_token=result.download_token)
         return {"status": result.status}
 
     return {"status": "ignored"}

@@ -13,6 +13,7 @@ from app.repositories.zoom_tokens import ZoomTokenRepository
 class RecordingCompletedResult:
     status: str
     lesson: Lesson | None = None
+    download_token: str | None = None
 
 
 class ZoomWebhookService:
@@ -69,6 +70,7 @@ class ZoomWebhookService:
             self.session.commit()
             return RecordingCompletedResult(status="ignored_no_transcript")
 
+        download_token = self._download_token(event_payload, meeting)
         lesson = Lesson(
             teacher_user_id=teacher_user_id,
             learning_profile_id=subscription.learning_profile_id,
@@ -80,7 +82,7 @@ class ZoomWebhookService:
         self.session.add(lesson)
         self.events.create(event_id=event_id, event_type=event_type, status="accepted")
         self.session.commit()
-        return RecordingCompletedResult(status="accepted", lesson=lesson)
+        return RecordingCompletedResult(status="accepted", lesson=lesson, download_token=download_token)
 
     def _event_id(self, payload: dict[str, Any]) -> str:
         event = payload.get("event", "unknown")
@@ -97,4 +99,14 @@ class ZoomWebhookService:
         for recording_file in meeting.get("recording_files") or []:
             if recording_file.get("file_type") == "TRANSCRIPT":
                 return recording_file.get("download_url")
+        return None
+
+    def _download_token(self, event_payload: dict[str, Any], meeting: dict[str, Any]) -> str | None:
+        token = event_payload.get("download_token") or meeting.get("download_token")
+        if token:
+            return str(token)
+        recording_file = meeting.get("recording_file") or {}
+        token = recording_file.get("download_token")
+        if token:
+            return str(token)
         return None
