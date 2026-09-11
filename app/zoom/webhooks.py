@@ -109,4 +109,7 @@ class ZoomWebhookService:
         token = recording_file.get("download_token")
         if token:
             return str(token)
+        for recording_file in meeting.get("recording_files") or []:
+            if recording_file.get("file_type") == "TRANSCRIPT" and recording_file.get("download_token"):
+                return str(recording_file["download_token"])
         return None

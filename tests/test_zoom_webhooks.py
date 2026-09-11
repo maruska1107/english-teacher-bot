@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import json
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -481,3 +481,56 @@ def test_recording_transcript_completed_returns_webhook_download_token_for_proce
     assert result.status == "accepted"
     assert result.lesson is not None
     assert result.download_token == "webhook-download-token"
+
+
+def test_recording_completed_returns_transcript_file_download_token_for_processing():
+    from app.zoom.webhooks import ZoomWebhookService
+
+    session = make_session()
+    teacher = User(telegram_user_id=1001, role="teacher", is_active=True)
+    session.add(teacher)
+    session.flush()
+    session.add(
+        ZoomToken(
+            user_id=teacher.id,
+            zoom_account_id="account-1",
+            zoom_user_id="host-1",
+            access_token="access",
+            refresh_token="refresh",
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+    )
+    session.add(
+        ZoomMeetingSubscription(
+            user_id=teacher.id,
+            meeting_id="987654327",
+            meeting_url="https://zoom.us/j/987654327",
+            is_active=True,
+        )
+    )
+    session.commit()
+    payload = {
+        "event": "recording.completed",
+        "event_ts": 129,
+        "payload": {
+            "account_id": "account-1",
+            "object": {
+                "id": "987654327",
+                "uuid": "meeting-uuid-7",
+                "host_id": "host-1",
+                "recording_files": [
+                    {"file_type": "MP4", "download_url": "https://zoom.example/video.mp4"},
+                    {
+                        "file_type": "TRANSCRIPT",
+                        "download_url": "https://zoom.example/transcript.vtt",
+                        "download_token": "file-download-token",
+                    },
+                ],
+            },
+        },
+    }
+
+    result = ZoomWebhookService(session).handle_recording_completed(payload)
+
+    assert result.status == "accepted"
+    assert result.download_token == "file-download-token"
